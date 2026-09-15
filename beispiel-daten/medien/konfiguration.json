@@ -1,0 +1,23 @@
+{
+  "projekt": "Atlas",
+  "umgebung": "produktion",
+  "datenbank": {
+    "host": "db-neu.intern",
+    "port": 5432,
+    "sicherung": "taeglich 02:00"
+  },
+  "wartungsfenster": [
+    "Donnerstag 20:00",
+    "Sonntag 06:00"
+  ],
+  "kontakte": [
+    {
+      "name": "Lena Brandt",
+      "rolle": "Projektleitung"
+    },
+    {
+      "name": "Jonas Feld",
+      "rolle": "Betrieb"
+    }
+  ]
+}

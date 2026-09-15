@@ -1,0 +1,16 @@
+nachricht_id|zeitstempel|absender_id|unterhaltungs_id|nachrichteninhalt|nachricht_typ|medienpfad|antwort_auf_id|reaktion_auf_id|status|messenger
+mx-001|2026-09-09T20:33:00|Marie|reise2026|Coucou ! On part vraiment à Lisbonne en mai ?|text||||gelesen|Instagram
+mx-002|2026-09-09T20:47:00|Ich|reise2026|Ja! Ich habe schon Flüge angeschaut.|text||||gesendet|Instagram
+mx-003|2026-09-09T20:56:00|Marie|reise2026|J'ai trouvé un super appartement près du centre.|text||||gelesen|Instagram
+mx-004|2026-09-09T20:58:00|Marie|reise2026|Regarde 😍|bild|medien/datscha_garten.png|||gelesen|Instagram
+mx-005|2026-09-09T20:59:00|Ich|reise2026|😍|reaktion|||mx-004|gelesen|Instagram
+mx-006|2026-09-09T21:04:00|Ich|reise2026|Sieht toll aus! Was kostet die Woche?|text||mx-004||gesendet|Instagram
+mx-007|2026-09-09T21:11:00|Marie|reise2026|Environ 480 euros pour nous deux.|text||||gelesen|Instagram
+mx-008|2026-09-09T21:15:00|Ich|reise2026|Passt. Buchen wir?|text||||gelesen|Instagram
+mx-009|2026-09-11T00:35:00|Paketdienst|service|Ihre Sendung 00340434292135100186 wird heute zwischen 14 und 16 Uhr zugestellt.|text||||zugestellt|SMS
+mx-010|2026-09-11T03:35:00|Paketdienst|service|Ihre Sendung wurde beim Nachbarn abgegeben.|text||||zugestellt|SMS
+mx-011|2026-09-11T08:35:00|Zahnarztpraxis Dr. Meier|service|Erinnerung: Ihr Termin am 15.09.2026 um 10:30 Uhr.|text||||zugestellt|SMS
+mx-012|2026-09-11T10:05:00|Bank|service|TAN 448210 für Ihre Überweisung. Geben Sie diese niemals weiter.|text||||zugestellt|SMS
+mx-013|2026-09-12T11:05:00|Nadia|brueckenchat|Hey, testen wir hier mal, ob die Brücke funktioniert?|text||||gelesen|Kontaktbrücke
+mx-014|2026-09-12T11:10:00|Ich|brueckenchat|Sieht so aus – Nachrichten kommen an.|text||||gesendet|Kontaktbrücke
+mx-015|2026-09-12T11:18:00|Nadia|brueckenchat|Perfekt. Dann verschieben wir den Rest hierher.|text||||gelesen|Kontaktbrücke

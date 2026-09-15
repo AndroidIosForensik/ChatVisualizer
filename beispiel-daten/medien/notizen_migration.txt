@@ -1,0 +1,11 @@
+Notizen zur Migration
+
+- Wartungsfenster: Donnerstag 20:00 bis 22:00 Uhr
+- Ansprechpartner Rechenzentrum: Frau Kaminski, Durchwahl 4711
+- Vor dem Umschalten: Datenbank sichern und Pruefsumme notieren
+- Rollback dauert erfahrungsgemaess acht Minuten
+
+Offene Punkte:
+1. Zertifikat fuer die neue Domain beantragen
+2. Monitoring auf den neuen Host umhaengen
+3. Alte Freigaben erst nach zwei Wochen entfernen

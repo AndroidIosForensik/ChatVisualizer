@@ -1,0 +1,18 @@
+/* ChatVisualizer – Oberfläche
+
+   Die Gestaltung ist nach Bereichen aufgeteilt; diese Datei bindet die
+   Teile in der richtigen Reihenfolge ein. Die Reihenfolge zählt: Späteres
+   überschreibt Früheres, deshalb steht schmal.css am Ende.
+
+   Wer etwas ändern will, sucht den Bereich in der Liste und bearbeitet
+   die zugehörige Datei in css/teile/. */
+
+@import url('teile/basis.css');          /* Farben, Raster, Knöpfe          */
+@import url('teile/seitenleiste.css');   /* Chatliste und Suche             */
+@import url('teile/chat.css');           /* Sprechblasen und Medien         */
+@import url('teile/panels.css');         /* Einstellungen und Hilfefenster  */
+@import url('teile/lightbox.css');       /* Großansicht                     */
+@import url('teile/details.css');        /* Detailspalte                    */
+@import url('teile/start.css');          /* Startbildschirm                 */
+@import url('teile/overlays.css');       /* Ablegen, Warten, Meldungen      */
+@import url('teile/schmal.css');         /* Ausnahmen für schmale Fenster   */

@@ -1,0 +1,17 @@
+nachricht_id,zeitstempel,absender_id,unterhaltungs_id,nachrichteninhalt,nachricht_typ,medienpfad,antwort_auf_id,reaktion_auf_id,status,messenger
+ru-001,2026-09-01T09:15:00,Ольга,datscha,Привет! Мы едем на дачу в субботу. Ты с нами?,text,,,,gelesen,WhatsApp
+ru-002,2026-09-01T09:22:00,Ich,datscha,"Привет! Да, с удовольствием. Во сколько выезжаем?",text,,,,gesendet,WhatsApp
+ru-003,2026-09-01T09:26:00,Ольга,datscha,В девять утра от дома. Дорога займёт около двух часов.,text,,ru-002,,gelesen,WhatsApp
+ru-004,2026-09-01T09:38:00,Дмитрий,datscha,,audio,medien/ru_sprachnachricht_dialog.ogg,,,gelesen,WhatsApp
+ru-005,2026-09-01T09:47:00,Ich,datscha,"Понял, буду вовремя.",text,,,,gesendet,WhatsApp
+ru-006,2026-09-01T10:12:00,Ольга,datscha,Вот как сейчас выглядит сад,bild,medien/datscha_garten.png,,,gelesen,WhatsApp
+ru-007,2026-09-01T10:13:00,Ich,datscha,❤️,reaktion,,,ru-006,gelesen,WhatsApp
+ru-008,2026-09-01T10:15:00,Дмитрий,datscha,🔥,reaktion,,,ru-006,gelesen,WhatsApp
+ru-009,2026-09-01T10:29:00,Дмитрий,datscha,Не забудьте взять воду и что-нибудь к чаю.,text,,,,gelesen,WhatsApp
+ru-010,2026-09-02T11:04:00,Ольга,datscha,,audio,medien/ru_sprachnachricht_lang.ogg,,,gelesen,WhatsApp
+ru-011,2026-09-02T11:22:00,Ich,datscha,Я куплю хлеб и фрукты по дороге.,text,,,,gesendet,WhatsApp
+ru-012,2026-09-02T11:24:00,Ich,datscha,Ich bringe außerdem Kuchen mit 🍰,text,,,,gesendet,WhatsApp
+ru-013,2026-09-02T11:30:00,Ольга,datscha,Отлично! Тогда до субботы.,text,,,,gelesen,WhatsApp
+ru-014,2026-09-02T11:52:00,Дмитрий,datscha,Погода обещает быть хорошей: https://pogoda.example.com/moskva,text,,,,gelesen,WhatsApp
+ru-015,2026-09-02T12:32:00,Ольга,datscha,До встречи! 🌿,text,,,,zugestellt,WhatsApp
+ru-016,2026-09-02T12:47:00,Дмитрий,datscha,Сообщение удалено,text,,,,gelöscht,WhatsApp

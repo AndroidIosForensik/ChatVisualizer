@@ -1,0 +1,5 @@
+# Keine Zeilenenden-Umwandlung: alle Dateien bleiben Byte für Byte, wie sie sind.
+# Wichtig für die Beispielmedien (PDF, PNG, WAV, OGG, WEBM, DOCX, XLSX) und für
+# die mitgelieferten Bibliotheken in vendor/, die sonst beim Auschecken unter
+# Windows beschädigt würden.
+* -text

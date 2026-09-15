@@ -1,0 +1,24 @@
+nachricht_id;zeitstempel;absender_id;unterhaltungs_id;nachrichteninhalt;nachricht_typ;medienpfad;antwort_auf_id;reaktion_auf_id;status;messenger
+th-001;03.09.2026 08:58:00;Lena;projekt-atlas;Server-Migration heute Abend ab 20 Uhr?;text;;;;gelesen;Threema
+th-002;03.09.2026 09:01:00;Ich;projekt-atlas;Passt. Ich bereite das Rollback-Skript vor.;text;;th-001;;gesendet;Threema
+th-003;03.09.2026 09:07:00;Jonas;projekt-atlas;Migrationsplan v3;datei;medien/migrationsplan_v3.pdf;;;gelesen;Threema
+th-004;03.09.2026 09:08:00;Lena;projekt-atlas;👍;reaktion;;;th-003;gelesen;Threema
+th-005;03.09.2026 09:10:00;Ich;projekt-atlas;Kurze Frage: Bleibt das Backup-Fenster bei 30 Minuten?;text;;th-003;;gesendet;Threema
+th-006;03.09.2026 09:14:00;Jonas;projekt-atlas;Ja, 30 Minuten reichen. Habe es gestern gemessen.;text;;th-005;;gelesen;Threema
+th-007;03.09.2026 09:40:00;Lena;projekt-atlas;;audio;medien/sprachnachricht_lena.wav;;;gelesen;Threema
+th-008;03.09.2026 09:45:00;Ich;projekt-atlas;Danke für das Update!;text;;;;gesendet;Threema
+th-009;03.09.2026 11:45:00;Jonas;projekt-atlas;"Ich hänge mich um 19:45 dazu.
+Falls etwas klemmt: Handy liegt neben mir.";text;;;;gelesen;Threema
+th-010;03.09.2026 16:45:00;Ich;projekt-atlas;Migration gestartet.;text;;;;zugestellt;Threema
+th-011;03.09.2026 18:20:00;Ich;projekt-atlas;Alles grün ✅ Downtime 11 Minuten.;text;;;;gesendet;Threema
+th-012;03.09.2026 18:22:00;Lena;projekt-atlas;🎉;reaktion;;;th-011;gelesen;Threema
+th-013;03.09.2026 18:26:00;Jonas;projekt-atlas;Sehr gut, danke euch beiden!;text;;th-011;;gelesen;Threema
+th-014;03.09.2026 18:51:00;Lena;projekt-atlas;Meine Notizen zum Ablauf;datei;medien/notizen_migration.txt;;;gelesen;Threema
+th-015;03.09.2026 18:59:00;Jonas;projekt-atlas;Die Konfiguration, die jetzt live ist;datei;medien/konfiguration.json;;;gelesen;Threema
+th-016;05.09.2026 19:29:00;Dr. Weber;beratung;Guten Tag, anbei die Unterlagen zur Prüfung.;text;;;;gelesen;Threema
+th-017;05.09.2026 19:30:00;Dr. Weber;beratung;;datei;medien/unterlagen_2026.pdf;;;gelesen;Threema
+th-018;05.09.2026 20:40:00;Ich;beratung;Vielen Dank, ich melde mich bis Freitag.;text;;th-016;;gesendet;Threema
+th-019;06.09.2026 21:25:00;Ich;beratung;Diese Nachricht wurde zurückgezogen;text;;;;gelöscht;Threema
+th-020;06.09.2026 21:50:00;Dr. Weber;beratung;Kein Problem. Melden Sie sich gerne, wenn Fragen offen sind.;text;;;;gelesen;Threema
+th-021;06.09.2026 21:52:00;Dr. Weber;beratung;Visitenkarte;kontakt;;;;gelesen;Threema
+th-022;06.09.2026 22:32:00;Dr. Weber;beratung;Das Abnahmeprotokoll zur Ablage;datei;medien/protokoll_abnahme.xml;;;gelesen;Threema

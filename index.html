@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChatVisualizer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='7' fill='%235B8DEF'/><path d='M12 5c-4 0-7.2 2.6-7.2 5.9 0 1.8 1 3.4 2.6 4.5L6.7 19l3.4-1.5c.6.1 1.2.2 1.9.2 4 0 7.2-2.6 7.2-5.8S16 5 12 5z' fill='white'/></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ------------------------------------------------ Seitenleiste -->
+  <aside class="sidebar">
+    <header class="side-head">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+          <rect width="24" height="24" rx="7" fill="var(--accent)"/>
+          <path d="M12 5c-4 0-7.2 2.6-7.2 5.9 0 1.8 1 3.4 2.6 4.5L6.7 19l3.4-1.5c.6.1 1.2.2 1.9.2 4 0 7.2-2.6 7.2-5.8S16 5 12 5z" fill="#fff"/>
+        </svg>
+        <span>ChatVisualizer</span>
+      </div>
+      <div class="side-actions">
+        <button id="helpBtn" class="icon-btn" title="Welche Spalten braucht die CSV-Datei?">?</button>
+        <button id="themeBtn" class="icon-btn" title="Hell / Dunkel">◐</button>
+        <button id="exportAll" class="icon-btn" title="Alles als JSON exportieren">⤓</button>
+        <button id="clearBtn" class="icon-btn danger" title="Alle Daten löschen">🗑</button>
+        <button id="mediaBtn" class="btn" title="Medienordner verbinden (Bilder, Videos, Sprachnachrichten)">🖼</button>
+        <button class="btn primary import-trigger" title="CSV-Dateien importieren">+ CSV</button>
+      </div>
+    </header>
+
+    <div id="mediaStatus" class="media-status"></div>
+
+    <div class="search-row">
+      <span class="search-icon">🔍</span>
+      <input id="search" type="search" placeholder="Alle Chats durchsuchen…  (Strg+K)" autocomplete="off">
+      <button id="searchClear" class="clear-btn" title="Suche leeren">✕</button>
+    </div>
+
+    <div id="messengerFilter" class="messenger-filter"></div>
+
+    <div class="list-head">
+      <span id="convCount">0 Chats</span>
+      <select id="sortSelect" title="Sortierung">
+        <option value="recent">Neueste zuerst</option>
+        <option value="oldest">Älteste zuerst</option>
+        <option value="count">Meiste Nachrichten</option>
+        <option value="name">Name (A–Z)</option>
+      </select>
+    </div>
+
+    <div id="convList" class="conv-list"></div>
+  </aside>
+
+  <!-- ------------------------------------------------ Chat -->
+  <main id="chatPane" class="chat-pane">
+    <header class="chat-head">
+      <button id="backBtn" class="icon-btn back" title="Zurück">←</button>
+      <span id="chatLogo" class="chat-logo"></span>
+      <div class="chat-head-text">
+        <h2 id="chatTitle"></h2>
+        <div id="chatSub" class="chat-sub"></div>
+      </div>
+
+      <div class="chat-tools">
+        <label class="me-select" title="Welcher Absender bist du? (rechtsbündig dargestellt)">
+          <span>Ich:</span>
+          <select id="meSelect"></select>
+        </label>
+
+        <div id="chatSearch" class="chat-search">
+          <input id="chatSearchInput" type="search" placeholder="Im Chat suchen…" autocomplete="off">
+          <span id="chatSearchCount" class="hit-count"></span>
+          <button id="hitPrev" class="icon-btn" title="Vorheriger Treffer">↑</button>
+          <button id="hitNext" class="icon-btn" title="Nächster Treffer">↓</button>
+        </div>
+        <button id="chatSearchToggle" class="icon-btn" title="Im Chat suchen (Strg+F)">🔍</button>
+
+        <span class="split-btn">
+          <button id="transcribeBtn" class="icon-btn" title="Alle Sprachnachrichten dieses Chats transkribieren">🎤</button>
+          <button id="scPanelBtn" class="icon-btn caret" title="Einstellungen für die Transkription">▾</button>
+        </span>
+
+        <span class="split-btn">
+          <button id="translateBtn" class="icon-btn" title="Diesen Chat übersetzen">🌐</button>
+          <button id="trPanelBtn" class="icon-btn caret" title="Einstellungen für die Übersetzung">▾</button>
+        </span>
+
+        <button id="exportChat" class="icon-btn" title="Diesen Chat als Text exportieren">⤓</button>
+        <button id="detailsToggle" class="icon-btn" title="Details anzeigen">ⓘ</button>
+      </div>
+
+      <!-- Einstellungen: Übersetzung -->
+      <div id="trPanel" class="tr-panel">
+        <div class="tr-head">
+          <b>Übersetzung</b>
+          <span id="trBackendInfo" class="tr-info"></span>
+        </div>
+
+        <button id="trRun" class="btn primary tr-run">Diesen Chat übersetzen</button>
+        <button id="trCancel" class="btn ghost tr-cancel" hidden>Abbrechen</button>
+        <div id="trProgress" class="tr-progress"></div>
+
+        <label class="tr-field"><span>Zielsprache</span><select id="trTarget"></select></label>
+        <label class="tr-check"><input type="checkbox" id="trSkipTarget"> Nachrichten in der Zielsprache überspringen</label>
+
+        <button id="trClearConv" class="btn ghost tr-clear">Übersetzungen dieses Chats löschen</button>
+        <p class="tr-note">Übersetzt wird mit der eingebauten Übersetzung von Chrome/Edge –
+          on-device, kein Text verlässt den Rechner. Das Sprachpaket lädt der Browser beim
+          ersten Mal selbst. Übersetzungen werden gespeichert und stehen beim nächsten Start
+          sofort wieder bereit.</p>
+      </div>
+
+      <!-- Einstellungen: Sprachnachrichten -->
+      <div id="scPanel" class="tr-panel">
+        <div class="tr-head">
+          <b>Sprachnachrichten</b>
+          <span id="scInfo" class="tr-info"></span>
+        </div>
+
+        <button id="scRun" class="btn primary tr-run">Sprachnachrichten transkribieren</button>
+        <button id="scCancel" class="btn ghost tr-cancel" hidden>Abbrechen</button>
+        <div id="scProgress" class="tr-progress"></div>
+        <div id="scHint" class="tr-hint"></div>
+
+        <label class="tr-field"><span>Verfahren</span>
+          <select id="scEngine">
+            <option value="bundled">Mitgeliefertes Modell (offline)</option>
+            <option value="prompt">Chrome-Spracherkennung</option>
+          </select>
+        </label>
+        <label class="tr-field" id="scModelRow"><span>Modell</span><select id="scModel"></select></label>
+        <label class="tr-field" id="scLangRow"><span>Sprache</span><select id="scLanguage"></select></label>
+
+        <button id="scClearConv" class="btn ghost tr-clear">Transkripte dieses Chats löschen</button>
+        <p class="tr-note">Alles läuft auf diesem Rechner – die Aufnahme verlässt ihn nicht.
+          Das mitgelieferte Modell liegt im Ordner <code>modelle/</code> und braucht keine
+          Installation. Fertige Transkripte lassen sich anschließend wie normale Nachrichten
+          übersetzen und durchsuchen.</p>
+      </div>
+    </header>
+
+    <div id="jobBar" class="job-bar">
+      <span class="job-icon"></span>
+      <span class="job-main">
+        <span class="job-title"></span>
+        <span class="job-line"><i></i></span>
+      </span>
+      <span class="job-count"></span>
+      <button class="job-cancel" type="button">Abbrechen</button>
+    </div>
+
+    <div id="chatScroll" class="chat-scroll">
+      <div id="chatMessages" class="chat-messages"></div>
+    </div>
+
+    <div class="chat-placeholder">
+      <div class="ph-inner">
+        <div class="ph-icon">💬</div>
+        <h3>Wähle links eine Unterhaltung</h3>
+        <p>Alle importierten Chats erscheinen in der Seitenleiste – gruppiert nach Messenger.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ------------------------------------------------ Details -->
+  <aside id="details" class="details"></aside>
+
+  <!-- ------------------------------------------------ Startbildschirm -->
+  <section class="welcome">
+    <div class="welcome-card">
+      <div class="w-logos">
+        <span class="w-logo" style="--c:#25D366">WhatsApp</span>
+        <span class="w-logo" style="--c:#4EBE4E">Threema</span>
+        <span class="w-logo" style="--c:#2AABEE">Telegram</span>
+        <span class="w-logo" style="--c:#3A76F0">Signal</span>
+        <span class="w-logo" style="--c:#E1306C">Instagram</span>
+      </div>
+      <h1>Chats aus CSV-Dateien ansehen</h1>
+      <p class="w-lead">Alles läuft lokal in deinem Browser – es werden keine Daten hochgeladen.</p>
+
+      <div class="w-actions">
+        <button class="btn primary big import-trigger">CSV-Dateien auswählen</button>
+        <button class="btn big" id="mediaBtnWelcome">Medienordner verbinden</button>
+        <button id="demoBtn" class="btn ghost big">Mit Demodaten ansehen</button>
+      </div>
+      <p class="w-hint">…oder CSV-Dateien und den Medienordner einfach ins Fenster ziehen.<br>
+        Bilder, Videos und Sprachnachrichten werden dann direkt im Chat angezeigt und abgespielt.</p>
+
+      <button class="w-format-link help-open">Welche Spalten braucht die CSV-Datei?</button>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ Hilfe zum CSV-Format -->
+  <div id="helpDialog" class="modal">
+    <div class="modal-card" role="dialog" aria-labelledby="helpTitel">
+      <header class="modal-head">
+        <h2 id="helpTitel">Welche Spalten braucht die CSV-Datei?</h2>
+        <button class="icon-btn" data-help-close title="Schließen (Esc)">✕</button>
+      </header>
+
+      <div class="modal-body">
+        <p class="modal-lead">Eine Kopfzeile mit den Spaltennamen, darunter eine Zeile je Nachricht.
+          <b>Drei Spalten müssen sein</b>, alles andere ist freiwillig und macht die Darstellung nur schöner.</p>
+
+        <table class="spalten">
+          <thead><tr><th>Spalte</th><th>Bedeutung</th><th>Beispiel</th></tr></thead>
+          <tbody>
+            <tr class="pflicht">
+              <td><code>nachricht_id</code><span class="tag">Pflicht</span></td>
+              <td>Eindeutige Kennung der Nachricht. Wird zum Wiedererkennen beim erneuten Import gebraucht und von <code>antwort_auf_id</code> und <code>reaktion_auf_id</code> referenziert.</td>
+              <td><code>wa-001</code></td>
+            </tr>
+            <tr class="pflicht">
+              <td><code>absender_id</code><span class="tag">Pflicht</span></td>
+              <td>Wer geschrieben hat. Name oder Kennung – was hier steht, erscheint als Absender im Chat.</td>
+              <td><code>Mama</code></td>
+            </tr>
+            <tr class="pflicht">
+              <td><code>unterhaltungs_id</code><span class="tag">Pflicht</span></td>
+              <td>Zu welchem Chat die Nachricht gehört. Gleiche Kennung = gleicher Chat.</td>
+              <td><code>familie</code></td>
+            </tr>
+            <tr>
+              <td><code>zeitstempel</code></td>
+              <td>Wann die Nachricht geschickt wurde. Ohne Angabe landen die Nachrichten in der Reihenfolge der Datei.</td>
+              <td><code>2026-08-30T18:12:04</code></td>
+            </tr>
+            <tr>
+              <td><code>nachrichteninhalt</code></td>
+              <td>Der Text. Bei Reaktionen steht hier das Emoji, bei Medien darf er leer sein.</td>
+              <td><code>Kommst du Sonntag?</code></td>
+            </tr>
+            <tr>
+              <td><code>nachricht_typ</code></td>
+              <td>Art der Nachricht. Erkannt werden <code>text</code>, <code>bild</code>, <code>video</code>, <code>audio</code>, <code>datei</code>, <code>system</code>, <code>standort</code>, <code>kontakt</code>, <code>umfrage</code>, <code>anruf</code>. Unbekannte Werte werden als Etikett angezeigt.</td>
+              <td><code>audio</code></td>
+            </tr>
+            <tr>
+              <td><code>medienpfad</code></td>
+              <td>Pfad zur Datei. Mit verbundenem Medienordner wird sie angezeigt bzw. abgespielt – auch bei vollständigen Pfaden aus dem Export.</td>
+              <td><code>medien/foto.jpg</code></td>
+            </tr>
+            <tr>
+              <td><code>antwort_auf_id</code></td>
+              <td>Die <code>nachricht_id</code> der zitierten Nachricht. Erscheint als anklickbares Zitat über der Sprechblase.</td>
+              <td><code>wa-001</code></td>
+            </tr>
+            <tr>
+              <td><code>reaktion_auf_id</code></td>
+              <td>Ist das gefüllt, gilt die Zeile als <b>Reaktion</b> auf die genannte Nachricht: sie erscheint als kleines Emoji an der Zielnachricht statt als eigene Sprechblase.</td>
+              <td><code>wa-005</code></td>
+            </tr>
+            <tr>
+              <td><code>status</code></td>
+              <td>Zustellzustand für die Häkchen: <code>gesendet</code> ✓, <code>zugestellt</code> ✓✓, <code>gelesen</code> ✓✓ blau, außerdem <code>fehlgeschlagen</code> und <code>gelöscht</code>.</td>
+              <td><code>gelesen</code></td>
+            </tr>
+            <tr>
+              <td><code>messenger</code></td>
+              <td>Aus welcher App die Nachricht stammt – bestimmt Logo und Farbe. Fehlt die Spalte, wird der Dateiname genommen.</td>
+              <td><code>WhatsApp</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Format der Datei</h3>
+        <ul class="modal-liste">
+          <li><b>Trennzeichen</b> wird automatisch erkannt: Komma, Semikolon, Tabulator oder senkrechter Strich.</li>
+          <li><b>Zeichensatz</b> UTF-8 (mit oder ohne BOM). Anführungszeichen nach RFC 4180, Zeilenumbrüche innerhalb von Feldern sind erlaubt.</li>
+          <li><b>Zeitformat</b> frei wählbar: <code>2026-08-30T18:12:04</code>, <code>30.08.2026 18:12</code> oder Unix-Zeit in Sekunden bzw. Millisekunden.</li>
+          <li><b>Englische Spaltennamen</b> gehen auch: <code>message_id</code>, <code>timestamp</code>, <code>sender_id</code>, <code>conversation_id</code>, <code>content</code>, <code>message_type</code>, <code>media_path</code>, <code>reply_to_id</code>, <code>reaction_to_id</code>, <code>status</code>, <code>platform</code>.</li>
+          <li><b>Mehrere Dateien</b> lassen sich zusammen importieren; dieselbe Datei zweimal zu importieren erzeugt keine Doppelten, sondern aktualisiert die Nachrichten (Schlüssel: Messenger + <code>nachricht_id</code>).</li>
+        </ul>
+
+        <h3>So sieht das aus</h3>
+        <pre class="beispiel">nachricht_id,zeitstempel,absender_id,unterhaltungs_id,nachrichteninhalt,nachricht_typ,medienpfad,antwort_auf_id,reaktion_auf_id,status,messenger
+wa-001,2026-08-30T18:12:04,Mama,familie,Kommst du Sonntag zum Essen?,text,,,,gelesen,WhatsApp
+wa-002,2026-08-30T18:14:20,Ich,familie,"Ja, gerne!",text,,wa-001,,gesendet,WhatsApp
+wa-003,2026-08-30T18:20:11,Mama,familie,Der neue Tisch,bild,medien/tisch.jpg,,,gelesen,WhatsApp
+wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsApp</pre>
+      </div>
+
+      <footer class="modal-foot">
+        <button id="helpTemplate" class="btn">Vorlage als CSV speichern</button>
+        <button class="btn primary import-trigger" data-help-close>CSV-Dateien auswählen</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------ Overlays -->
+  <div id="dropzone" class="dropzone">
+    <div class="dz-inner"><div class="dz-icon">⤓</div><b>CSV-Dateien oder Medienordner hier ablegen</b>
+      <div class="dz-sub">Ordner werden als Medienquelle verbunden, enthaltene CSV-Dateien importiert.</div>
+    </div>
+  </div>
+  <div id="importBusy" class="busy"><div class="spinner"></div><span>Einen Moment…</span></div>
+  <div id="toast" class="toast"></div>
+
+  <div id="lightbox" class="lightbox">
+    <button class="lb-btn lb-close" data-lb-close title="Schließen (Esc)">✕</button>
+    <button class="lb-btn lb-prev" data-lb-prev title="Zurück (←)">‹</button>
+    <button class="lb-btn lb-next" data-lb-next title="Weiter (→)">›</button>
+    <div id="lbStage" class="lb-stage"></div>
+    <div id="lbCaption" class="lb-caption"></div>
+  </div>
+
+  <input id="fileInput" type="file" accept=".csv,.txt,.tsv,text/csv" multiple hidden>
+  <input id="dirInput" type="file" webkitdirectory directory multiple hidden>
+</div>
+
+<!-- Reihenfolge: Grundlagen → Daten → Ansicht → Bedienung → Start.
+     Jede Datei ist ein eigenständiges Modul und legt einen globalen Namen ab
+     (kein Build-Schritt nötig). Siehe ARCHITEKTUR.md. -->
+
+<!-- kern: Grundlagen ohne Oberfläche -->
+<script src="js/kern/helfer.js"></script>
+<script src="js/kern/csv.js"></script>
+<script src="js/kern/store.js"></script>
+<script src="js/kern/model.js"></script>
+
+<!-- daten: Dateien, Medien, Dokumente, Übersetzung, Spracherkennung -->
+<script src="js/daten/messengers.js"></script>
+<script src="js/daten/media.js"></script>
+<script src="js/daten/archive.js"></script>
+<script src="js/daten/documents.js"></script>
+<script src="js/daten/transcribe.js"></script>
+<script src="js/daten/translate.js"></script>
+
+<!-- ansicht: HTML erzeugen -->
+<script src="js/ansicht/text.js"></script>
+<script src="js/ansicht/suche.js"></script>
+<script src="js/ansicht/medien.js"></script>
+<script src="js/ansicht/liste.js"></script>
+<script src="js/ansicht/chat.js"></script>
+<script src="js/ansicht/details.js"></script>
+<script src="js/ansicht/render.js"></script>
+
+<!-- bedienung: Knöpfe, Panels, Abläufe -->
+<script src="js/bedienung/meldung.js"></script>
+<script src="js/bedienung/fortschritt.js"></script>
+<script src="js/bedienung/hilfe.js"></script>
+<script src="js/bedienung/dokumente.js"></script>
+<script src="js/bedienung/import.js"></script>
+<script src="js/bedienung/medienordner.js"></script>
+<script src="js/bedienung/uebersetzen.js"></script>
+<script src="js/bedienung/sprachnachrichten.js"></script>
+<script src="js/bedienung/lightbox.js"></script>
+
+<script src="js/app.js"></script>
+</body>
+</html>

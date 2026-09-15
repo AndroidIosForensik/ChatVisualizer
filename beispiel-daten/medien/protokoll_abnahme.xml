@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<abnahme datum="2026-09-06">
+  <titel>Abnahmeprotokoll Projekt Atlas</titel>
+  <teilnehmer>
+    <person rolle="Auftraggeber">Dr. Weber</person>
+    <person rolle="Projektleitung">Lena Brandt</person>
+  </teilnehmer>
+  <punkte>
+    <punkt status="erledigt">Datenuebernahme vollstaendig geprueft</punkt>
+    <punkt status="erledigt">Schnittstelle zum Warenwirtschaftssystem getestet</punkt>
+    <punkt status="offen">Schulungsunterlagen werden nachgereicht</punkt>
+  </punkte>
+  <bemerkung>Die Abnahme erfolgt unter Vorbehalt der offenen Schulungsunterlagen.</bemerkung>
+</abnahme>

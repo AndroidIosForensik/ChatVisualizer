@@ -1,0 +1,17 @@
+message_id	timestamp	sender_id	conversation_id	content	message_type	media_path	reply_to_id	reaction_to_id	status	platform
+tg-001	1788625320	system	laufgruppe	"Gruppe „Laufgruppe Ostpark"" wurde erstellt"	system					Telegram
+tg-002	1788625620	Sara	laufgruppe	Morgen 7 Uhr am Park?	text				gelesen	Telegram
+tg-003	1788626100	Ich	laufgruppe	Bin dabei 🏃	text		tg-002		gesendet	Telegram
+tg-004	1788626460	Tim	laufgruppe	Ich auch, aber ich komme zehn Minuten später.	text				gelesen	Telegram
+tg-005	1788626640	Sara	laufgruppe	Treffpunkt Nordeingang	standort	medien/standort.json			gelesen	Telegram
+tg-006	1788626880	Sara	laufgruppe		audio	medien/sprachnachricht_sara.wav			gelesen	Telegram
+tg-007	1788755280	Sara	laufgruppe	Foto von heute früh	bild	medien/lauf_sonnenaufgang.png			gelesen	Telegram
+tg-008	1788755400	Ich	laufgruppe	😍	reaktion			tg-007	gelesen	Telegram
+tg-009	1788756120	Tim	laufgruppe	Schönes Bild! Nächstes Mal früher los?	text		tg-007		gelesen	Telegram
+tg-010	1788756420	Sara	laufgruppe	Kurzer Clip vom Sonnenaufgang	video	medien/clip_sonnenaufgang.webm			gelesen	Telegram
+tg-011	1788758820	Tim	laufgruppe	Die Strecke für Sonntag	bild	medien/laufstrecke.png			gelesen	Telegram
+tg-012	1788760140	Sara	laufgruppe	Anmeldung für den Stadtlauf ist raus	datei	medien/anmeldung_lauf.pdf			gelesen	Telegram
+tg-013	1788761040	Tim	laufgruppe	Wetter sieht gut aus: https://wetter.example.com/ostpark	text				gelesen	Telegram
+tg-014	1788761580	Ich	laufgruppe	Perfekt. Dann bis Sonntag um halb zehn!	text				gesendet	Telegram
+tg-015	1788761940	Sara	laufgruppe	Wer läuft die 10 km?	umfrage				gelesen	Telegram
+tg-016	1788762120	Tim	laufgruppe	🏅	text				gelesen	Telegram

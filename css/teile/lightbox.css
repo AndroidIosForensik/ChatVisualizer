@@ -1,0 +1,31 @@
+/* Großansicht für Bilder, Videos, PDF-Seiten und Dokumenttexte. */
+
+/* Lightbox */
+.lightbox {
+  position: fixed; inset: 0; z-index: 120;
+  display: none; place-items: center;
+  background: rgba(6, 9, 14, .92);
+  padding: 56px 60px 76px;
+}
+.lightbox.show { display: grid; }
+.lb-stage { max-width: 100%; max-height: 100%; display: grid; place-items: center; }
+.lb-stage img, .lb-stage video {
+  max-width: min(1400px, 92vw); max-height: calc(100vh - 140px);
+  border-radius: 10px; box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+}
+.lb-caption {
+  position: absolute; left: 0; right: 0; bottom: 18px;
+  text-align: center; color: #d9e2ee; font-size: 13px; padding: 0 20px;
+}
+.lb-caption b { color: #fff; }
+.lb-count { display: block; font-size: 11px; color: #8c98a8; margin-top: 3px; }
+.lb-btn {
+  position: absolute; z-index: 2;
+  border: 1px solid rgba(255, 255, 255, .16);
+  background: rgba(20, 26, 34, .7); color: #fff;
+  width: 42px; height: 42px; border-radius: 50%; font-size: 20px; line-height: 1;
+}
+.lb-btn:hover { background: rgba(40, 50, 64, .9); }
+.lb-close { top: 16px; right: 18px; }
+.lb-prev { left: 14px; top: 50%; transform: translateY(-50%); }
+.lb-next { right: 14px; top: 50%; transform: translateY(-50%); }

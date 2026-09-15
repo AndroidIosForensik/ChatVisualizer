@@ -1,0 +1,33 @@
+nachricht_id,zeitstempel,absender_id,unterhaltungs_id,nachrichteninhalt,nachricht_typ,medienpfad,antwort_auf_id,reaktion_auf_id,status,messenger
+wa-001,2026-08-28T17:43:00,Mama,familie,Kommt ihr Sonntag zum Essen? Es gibt Rouladen.,text,,,,gelesen,WhatsApp
+wa-002,2026-08-28T17:46:00,Ich,familie,"Ja, sehr gerne! Wir bringen den Nachtisch mit 🍰",text,,wa-001,,gelesen,WhatsApp
+wa-003,2026-08-28T17:49:00,Papa,familie,Super. Um 12 Uhr wie immer?,text,,,,gelesen,WhatsApp
+wa-004,2026-08-28T17:52:00,Ich,familie,Passt bei uns.,text,,wa-003,,gelesen,WhatsApp
+wa-005,2026-08-28T18:01:00,Mama,familie,Der neue Gartentisch ist endlich da,bild,medien/gartentisch.png,,,gelesen,WhatsApp
+wa-006,2026-08-28T18:02:00,Ich,familie,❤️,reaktion,,,wa-005,gelesen,WhatsApp
+wa-007,2026-08-28T18:03:00,Papa,familie,👍,reaktion,,,wa-005,gelesen,WhatsApp
+wa-008,2026-08-28T18:05:00,Ich,familie,Sieht richtig gut aus! Habt ihr den selbst aufgebaut?,text,,wa-005,,gelesen,WhatsApp
+wa-009,2026-08-28T18:09:00,Mama,familie,Papa hat drei Stunden gebraucht 😄,text,,,,gelesen,WhatsApp
+wa-010,2026-08-28T18:11:00,Papa,familie,Zwei! Und die Anleitung war falsch.,text,,,,gelesen,WhatsApp
+wa-011,2026-08-31T18:26:00,Mama,familie,Vergesst die Blumen für Oma nicht!,text,,,,zugestellt,WhatsApp
+wa-012,2026-08-31T18:54:00,Ich,familie,Schon besorgt 💐,text,,,,gesendet,WhatsApp
+wa-013,2026-09-01T19:34:00,Papa,familie,,audio,medien/sprachnachricht_papa.wav,,,gelesen,WhatsApp
+wa-014,2026-09-01T19:40:00,Ich,familie,"Alles klar, fahr vorsichtig!",text,,,,gelesen,WhatsApp
+wa-015,2026-09-01T20:35:00,Mama,familie,Kassenbon vom Baumarkt – falls wir was zurückgeben müssen,datei,medien/kassenbon_baumarkt.pdf,,,gelesen,WhatsApp
+wa-016,2026-09-01T20:47:00,Ich,familie,Diese Nachricht wurde gelöscht,text,,,,gelöscht,WhatsApp
+wa-017,2026-09-02T21:17:00,Mama,familie,Guten Morgen zusammen ☀️,text,,,,zugestellt,WhatsApp
+wa-018,2026-09-02T22:02:00,Papa,familie,Verpasster Anruf,anruf,,,,zugestellt,WhatsApp
+wa-019,2026-09-03T22:07:00,system,verein,"Gruppe „Sportverein Grün-Weiß"" wurde erstellt",system,,,,,WhatsApp
+wa-020,2026-09-03T22:09:00,Trainer Ben,verein,Training am Donnerstag fällt aus – die Halle wird saniert.,text,,,,gelesen,WhatsApp
+wa-021,2026-09-03T22:15:00,Sara,verein,Schade! Gibt es Ersatz?,text,,,,gelesen,WhatsApp
+wa-022,2026-09-03T22:19:00,Trainer Ben,verein,"Freitag 18 Uhr, gleiche Halle.",text,,wa-021,,gelesen,WhatsApp
+wa-023,2026-09-03T22:22:00,Ich,verein,Bin dabei.,text,,,,gesendet,WhatsApp
+wa-024,2026-09-03T22:23:00,Sara,verein,👍,reaktion,,,wa-023,gelesen,WhatsApp
+wa-025,2026-09-03T22:32:00,Trainer Ben,verein,Hallenplan für die nächsten Wochen,datei,medien/hallenplan.pdf,,,gelesen,WhatsApp
+wa-026,2026-09-03T22:34:00,Trainer Ben,verein,Wer kommt am Freitag mit?,umfrage,,,,gelesen,WhatsApp
+wa-027,2026-09-03T22:54:00,Sara,verein,Kurzes Video vom letzten Spiel,video,medien/vereinsheim_video.mp4,,,gelesen,WhatsApp
+wa-028,2026-09-03T23:02:00,Ich,verein,Bekomme die Datei nicht auf – bei dir?,text,,,,gesendet,WhatsApp
+wa-029,2026-09-03T23:13:00,Trainer Ben,verein,Bei mir auch nicht. Ich lade es nochmal hoch.,text,,,,gelesen,WhatsApp
+wa-030,2026-09-04T00:43:00,Trainer Ben,verein,Angebot für den Umbau ist da,datei,medien/angebot_umbau.docx,,,gelesen,WhatsApp
+wa-031,2026-09-04T00:49:00,Sara,verein,Und die Kalkulation dazu,datei,medien/kalkulation_umbau.xlsx,,,gelesen,WhatsApp
+wa-032,2026-09-04T01:03:00,Ich,verein,Danke! Ich schaue mir beides heute Abend an.,text,,,,gesendet,WhatsApp

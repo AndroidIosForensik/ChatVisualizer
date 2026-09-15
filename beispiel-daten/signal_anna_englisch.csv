@@ -1,0 +1,14 @@
+message_id,timestamp,sender_id,conversation_id,content,message_type,media_path,reply_to_id,reaction_to_id,status,platform
+sg-001,2026-09-08T11:08:00,Anna,anna,Hey! Are we still on for Thursday?,text,,,,gelesen,Signal
+sg-002,2026-09-08T11:20:00,Ich,anna,"Yes! Same place, same time?",text,,sg-001,,gesendet,Signal
+sg-003,2026-09-08T11:27:00,Anna,anna,,audio,medien/voice_alex_en.wav,,,gelesen,Signal
+sg-004,2026-09-08T11:42:00,Ich,anna,Thursday at three works for me. I will print the slides tonight.,text,,,,gesendet,Signal
+sg-005,2026-09-08T12:07:00,Anna,anna,"Also, I finally booked the tickets 🎉",text,,,,gelesen,Signal
+sg-006,2026-09-08T12:08:00,Ich,anna,🎉,reaktion,,,sg-005,gelesen,Signal
+sg-007,2026-09-08T12:10:00,Ich,anna,Amazing! How much do I owe you?,text,,sg-005,,gesendet,Signal
+sg-008,2026-09-08T12:19:00,Anna,anna,"42.50 — no rush though, next week is fine.",text,,,,gelesen,Signal
+sg-009,2026-09-09T18:59:00,Anna,anna,,audio,medien/voice_tim_en.wav,,,gelesen,Signal
+sg-010,2026-09-09T19:17:00,Ich,anna,Twelve kilometres sounds doable. Are you bringing the dog?,text,,,,gesendet,Signal
+sg-011,2026-09-09T19:23:00,Anna,anna,Of course 🐕 He would never forgive me otherwise.,text,,,,gelesen,Signal
+sg-012,2026-09-09T19:26:00,Anna,anna,Details are here: https://example.com/trail/ostpark-loop,text,,,,gelesen,Signal
+sg-013,2026-09-09T19:30:00,Ich,anna,See you Thursday!,text,,,,zugestellt,Signal

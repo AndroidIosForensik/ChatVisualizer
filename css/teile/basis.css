@@ -1,0 +1,113 @@
+/* Farben, Grundeinstellungen, Seitenraster und Knöpfe. */
+
+:root {
+  --bg: #0f1319;
+  --bg-2: #151a22;
+  --bg-3: #1b2230;
+  --panel: #131820;
+  --line: #232c3a;
+  --line-soft: #1c2431;
+  --text: #e6ebf2;
+  --text-2: #9aa7b8;
+  --text-3: #6e7b8d;
+  --accent: #5b8def;
+  --accent-soft: rgba(91, 141, 239, .16);
+  --bubble-in: #1c2430;
+  --bubble-out: #2e5b8f;
+  --bubble-out-text: #f2f7ff;
+  --mark: #f7d774;
+  --danger: #e2585d;
+  --ok: #46c07a;
+  --warn: #e0a53c;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  --radius: 14px;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #eef1f6;
+  --bg-2: #ffffff;
+  --bg-3: #f3f6fa;
+  --panel: #ffffff;
+  --line: #dde3ec;
+  --line-soft: #e8edf4;
+  --text: #16202e;
+  --text-2: #5b6979;
+  --text-3: #8a97a8;
+  --accent: #2f6fe4;
+  --accent-soft: rgba(47, 111, 228, .12);
+  --bubble-in: #ffffff;
+  --bubble-out: #d5e6ff;
+  --bubble-out-text: #10233c;
+  --mark: #ffe38a;
+  --shadow: 0 8px 24px rgba(20, 40, 80, .12);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  font: 14px/1.5 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+mark { background: var(--mark); color: #23282e; border-radius: 3px; padding: 0 1px; }
+a { color: var(--accent); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ------------------------------------------------------------------ Layout */
+#app {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr) 0;
+  /* Ohne Zeilenangabe wüchse die Zeile mit dem Inhalt – dann bekämen die
+     Spalten keine eigene Bildlaufleiste und der untere Teil wäre abgeschnitten. */
+  grid-template-rows: minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  transition: grid-template-columns .18s ease;
+}
+#app > * { min-height: 0; }
+#app:has(.details.open) { grid-template-columns: 340px minmax(0, 1fr) 320px; }
+
+/* ------------------------------------------------------------------ Buttons */
+.btn {
+  border: 1px solid var(--line);
+  background: var(--bg-3);
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-weight: 600;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; }
+.btn.big { padding: 11px 20px; border-radius: 12px; font-size: 15px; }
+
+.icon-btn {
+  width: 32px; height: 32px;
+  display: inline-grid; place-items: center;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  border-radius: 9px;
+  font-size: 15px;
+  transition: background .15s, color .15s;
+}
+.icon-btn:hover { background: var(--bg-3); color: var(--text); }
+.icon-btn.active { background: var(--accent-soft); color: var(--accent); }
+.icon-btn.danger:hover { background: rgba(226, 88, 93, .15); color: var(--danger); }
+
