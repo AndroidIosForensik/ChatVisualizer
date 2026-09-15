@@ -1,22 +1,21 @@
 # Aufbau von ChatVisualizer
 
-Diese Datei erklärt, wo was liegt und warum. Sie richtet sich an alle, die
-später etwas ändern wollen – auch an mich selbst in einem halben Jahr.
+Wo was liegt und warum, als Einstieg für spätere Änderungen.
 
 ## Leitgedanken
 
 1. **Kein Bauwerkzeug.** Kein npm, kein Bundler, kein Übersetzer. Jede Datei
-   ist ein ganz normales `<script>`; wer etwas ändert, drückt F5. Deshalb
-   keine ES-Module in der Seite, sondern klassische Skripte, die je einen
-   globalen Namen ablegen (`Helfer`, `Model`, `Render`, …). Einzige Ausnahme:
-   der Arbeiter-Thread der Spracherkennung, der echte `import`-Anweisungen
+   ist ein normales `<script>`, nach einer Änderung genügt F5. Deshalb keine
+   ES-Module in der Seite, sondern klassische Skripte, die je einen globalen
+   Namen ablegen (`Helfer`, `Model`, `Render`, …). Ausnahme ist der
+   Arbeiter-Thread der Spracherkennung, der echte `import`-Anweisungen
    benutzt.
 2. **Alles bleibt auf dem Rechner.** Keine Datei wird hochgeladen, kein
    Dienst angefragt. Übersetzung und Spracherkennung laufen im Browser bzw.
-   aus dem mitgelieferten Modellordner.
+   aus dem Modellordner. Einzige Netzverbindung ist das einmalige Laden des
+   Spracherkennungsmodells beim ersten Start.
 3. **Eine Aufgabe je Datei.** Wird eine Datei größer als ein paar hundert
-   Zeilen, wird sie geteilt – so wie beim letzten Mal `app.js` und
-   `render.js`.
+   Zeilen, wird sie geteilt, so geschehen mit `app.js` und `render.js`.
 
 ## Ordner
 
@@ -30,9 +29,17 @@ js/ansicht/           erzeugt HTML – liest den Zustand, ändert ihn nicht
 js/bedienung/         Knöpfe, Panels, Abläufe – ändert den Zustand
 js/app.js             verbindet alles und startet
 beispiel-daten/       CSV-Dateien und Medien zum Ausprobieren
-modelle/              Whisper-Modell für die Spracherkennung (offline)
+modelle/quellen.json  Bauplan: welche Modelldateien wohin gehören
+modelle/              Whisper-Modell, wird beim ersten Start geladen
+hole-modell.py        lädt fehlende Modelldateien nach (von start.sh aufgerufen)
 vendor/               PDF.js und transformers.js, unverändert übernommen
 ```
+
+Das Modell liegt nicht im Git-Speicher, weil GitHub ohne Git LFS bei 100 MB
+je Datei aufhört. `start.ps1` (Windows, mit Bordmitteln) und `hole-modell.py`
+(macOS/Linux, von `start.sh` aufgerufen) prüfen beim Start gegen
+`modelle/quellen.json`, laden fehlende Dateien nach, setzen abgebrochene
+Downloads fort und schreiben anschließend `modelle/verzeichnis.json`.
 
 ## Die Schichten
 

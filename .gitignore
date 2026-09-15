@@ -1,7 +1,11 @@
-# Spracherkennungsmodell – zu groß für GitHub (242 MB, eine Datei davon 150 MB;
-# GitHub nimmt ohne Git LFS keine Datei über 100 MB an).
-# Wie man den Ordner wiederherstellt, steht in README.md → „Modell nachlegen".
-modelle/
+# Spracherkennungsmodell: zu groß für GitHub (242 MB, eine Datei davon 150 MB –
+# ohne Git LFS ist bei 100 MB Schluss). Es wird beim ersten Start automatisch
+# geladen; der Bauplan dafür (quellen.json) bleibt im Verzeichnis.
+modelle/*
+!modelle/quellen.json
+
+# Angefangene Downloads
+*.teil
 
 # Fertig gepacktes Archiv zum Weitergeben
 *.zip

@@ -4,12 +4,17 @@
 #   .\start.ps1                 sucht einen freien Port ab 8777 und oeffnet den Browser
 #   .\start.ps1 -Port 9000      benutzt genau diesen Port
 #   .\start.ps1 -NoBrowser      startet nur den Server
+#   .\start.ps1 -KeinModell     ohne die Spracherkennung starten (nichts nachladen)
+#
+# Fehlt das Spracherkennungsmodell, wird es beim ersten Start automatisch
+# geladen (rund 242 MB, siehe modelle\quellen.json).
 #
 # Beenden: Strg+C oder das Fenster schliessen.
 
 param(
   [int]$Port = 0,
-  [switch]$NoBrowser
+  [switch]$NoBrowser,
+  [switch]$KeinModell
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,6 +26,168 @@ $resolvedRoot = (Resolve-Path $root).Path
 if (-not (Test-Path (Join-Path $root 'index.html'))) {
   Write-Host "index.html wurde neben start.ps1 nicht gefunden ($root)." -ForegroundColor Red
   exit 3
+}
+
+# --- Spracherkennungsmodell nachladen ---------------------------------------
+# Das Modell ist zu gross fuer den Git-Speicher und wird deshalb beim ersten
+# Start geholt. Was dazugehoert, steht in modelle\quellen.json.
+
+# Die Beschreibungen dort enthalten Umlaute - ohne das hier zeigt die Konsole
+# Kraehenfuesse an.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
+function Format-Menge([double]$bytes) {
+  if ($bytes -lt 1MB) { return ('{0:N0} KB' -f ($bytes / 1KB)) }
+  return ('{0:N1} MB' -f ($bytes / 1MB))
+}
+
+function Get-FehlendeDateien($modell, $modelleOrdner) {
+  $offen = New-Object System.Collections.ArrayList
+  foreach ($d in $modell.dateien) {
+    $ziel = Join-Path $modelleOrdner (($modell.name -replace '/', '\') + '\' + ($d.pfad -replace '/', '\'))
+    $fehlt = -not (Test-Path $ziel -PathType Leaf)
+    if (-not $fehlt -and (Get-Item $ziel).Length -ne $d.bytes) { $fehlt = $true }
+    if ($fehlt) { [void]$offen.Add([pscustomobject]@{ Datei = $d; Ziel = $ziel }) }
+  }
+  return $offen
+}
+
+function Get-Datei($url, $ziel, [long]$groesse, [int]$nummer, [int]$gesamt) {
+  $ordner = Split-Path -Parent $ziel
+  if (-not (Test-Path $ordner)) { New-Item -ItemType Directory -Force -Path $ordner | Out-Null }
+
+  # Angefangene Downloads liegen als *.teil daneben und werden fortgesetzt
+  $teil = "$ziel.teil"
+  [long]$da = 0
+  if (Test-Path $teil) { $da = (Get-Item $teil).Length }
+  if ($da -gt $groesse) { Remove-Item $teil -Force; $da = 0 }
+
+  $name = Split-Path -Leaf $ziel
+  $zusatz = ''
+  if ($da -gt 0) { $zusatz = '  fortgesetzt bei ' + (Format-Menge $da) }
+  Write-Host ("  [{0}/{1}] {2}  ({3}){4}" -f $nummer, $gesamt, $name, (Format-Menge $groesse), $zusatz)
+
+  [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+  $anfrage = [System.Net.HttpWebRequest]::Create($url)
+  $anfrage.UserAgent = 'ChatVisualizer'
+  $anfrage.Timeout = 60000
+  $anfrage.ReadWriteTimeout = 180000
+  if ($da -gt 0) { $anfrage.AddRange([long]$da) }
+
+  $antwort = $anfrage.GetResponse()
+  # Ignoriert der Server die Fortsetzung, faengt die Datei von vorn an
+  $fortsetzen = ($antwort.StatusCode -eq [System.Net.HttpStatusCode]::PartialContent -and $da -gt 0)
+  if (-not $fortsetzen) { $da = 0 }
+  $modus = [System.IO.FileMode]::Create
+  if ($fortsetzen) { $modus = [System.IO.FileMode]::Append }
+
+  $quelle = $antwort.GetResponseStream()
+  $ausgabe = New-Object System.IO.FileStream($teil, $modus, [System.IO.FileAccess]::Write)
+  try {
+    $puffer = New-Object byte[] 262144
+    [long]$geladen = $da
+    $uhr = [System.Diagnostics.Stopwatch]::StartNew()
+    $letzte = 0
+    while ($true) {
+      $gelesen = $quelle.Read($puffer, 0, $puffer.Length)
+      if ($gelesen -le 0) { break }
+      $ausgabe.Write($puffer, 0, $gelesen)
+      $geladen += $gelesen
+      if ($uhr.ElapsedMilliseconds - $letzte -gt 400) {
+        $letzte = $uhr.ElapsedMilliseconds
+        $anteil = 0
+        if ($groesse -gt 0) { $anteil = $geladen * 100.0 / $groesse }
+        Write-Host ("`r        {0,5:N1} %  {1} von {2}   " -f $anteil, (Format-Menge $geladen), (Format-Menge $groesse)) -NoNewline
+      }
+    }
+  } finally {
+    $ausgabe.Close(); $quelle.Close(); $antwort.Close()
+  }
+  Write-Host ("`r        fertig: {0}{1}" -f (Format-Menge $groesse), (' ' * 22))
+
+  if ((Get-Item $teil).Length -ne $groesse) {
+    throw ("unerwartete Groesse ({0} statt {1})" -f (Get-Item $teil).Length, $groesse)
+  }
+  if (Test-Path $ziel) { Remove-Item $ziel -Force }
+  Move-Item $teil $ziel
+}
+
+function Write-Verzeichnis($modelle, $modelleOrdner) {
+  $fertig = @()
+  foreach ($m in $modelle) {
+    if ((Get-FehlendeDateien $m $modelleOrdner).Count -eq 0) {
+      $fertig += [pscustomobject]@{ name = $m.name; bytes = $m.bytes }
+    }
+  }
+  if ($fertig.Count -eq 0) { return }
+  $inhalt = [pscustomobject]@{
+    hinweis = 'Erzeugt von start.ps1. Welche Modelle bereitliegen; "bytes" dient nur der Fortschrittsanzeige.'
+    modelle = $fertig
+  }
+  $ziel = Join-Path $modelleOrdner 'verzeichnis.json'
+  ($inhalt | ConvertTo-Json -Depth 4) | Out-File -FilePath $ziel -Encoding utf8
+}
+
+function Get-Modelle($root) {
+  $modelleOrdner = Join-Path $root 'modelle'
+  $quellen = Join-Path $modelleOrdner 'quellen.json'
+  if (-not (Test-Path $quellen)) { return }
+
+  $modelle = @((Get-Content $quellen -Raw -Encoding UTF8 | ConvertFrom-Json).modelle)
+  Write-Verzeichnis $modelle $modelleOrdner
+
+  $auftrag = @()
+  foreach ($m in $modelle) {
+    $offen = Get-FehlendeDateien $m $modelleOrdner
+    if ($offen.Count -gt 0) { $auftrag += [pscustomobject]@{ Modell = $m; Offen = $offen } }
+  }
+  if ($auftrag.Count -eq 0) { return }
+
+  $menge = 0
+  foreach ($a in $auftrag) { foreach ($o in $a.Offen) { $menge += $o.Datei.bytes } }
+
+  Write-Host ""
+  Write-Host ("  Spracherkennung: {0} werden einmalig geladen." -f (Format-Menge $menge)) -ForegroundColor Cyan
+  foreach ($a in $auftrag) { Write-Host ("  {0} - {1}" -f $a.Modell.name, $a.Modell.beschreibung) -ForegroundColor DarkGray }
+  Write-Host "  Quelle: huggingface.co - Abbrechen mit Strg+C, der Rest laeuft auch ohne." -ForegroundColor DarkGray
+  Write-Host ""
+
+  foreach ($a in $auftrag) {
+    $nummer = 0
+    foreach ($o in $a.Offen) {
+      $nummer++
+      $url = $a.Modell.basis + $o.Datei.pfad
+      $geschafft = $false
+      for ($versuch = 1; $versuch -le 3; $versuch++) {
+        try { Get-Datei $url $o.Ziel $o.Datei.bytes $nummer $a.Offen.Count; $geschafft = $true; break }
+        catch {
+          if ($versuch -eq 3) {
+            Write-Host ""
+            Write-Host ("  Fehlgeschlagen: {0} ({1})" -f $o.Datei.pfad, $_.Exception.Message) -ForegroundColor Yellow
+            Write-Host "  ChatVisualizer startet trotzdem - nur die Transkription bleibt aus." -ForegroundColor DarkGray
+            Write-Host "  Spaeter erneut versuchen: einfach neu starten." -ForegroundColor DarkGray
+            Write-Host ""
+            return
+          }
+          Write-Host ("        Neuer Versuch ({0}/3) ..." -f ($versuch + 1)) -ForegroundColor DarkGray
+          Start-Sleep -Seconds 2
+        }
+      }
+      if (-not $geschafft) { return }
+    }
+  }
+
+  Write-Verzeichnis $modelle $modelleOrdner
+  Write-Host "  Spracherkennung ist bereit." -ForegroundColor Green
+  Write-Host ""
+}
+
+if (-not $KeinModell) {
+  try { Get-Modelle $root }
+  catch {
+    Write-Host ("  Modell konnte nicht geladen werden: {0}" -f $_.Exception.Message) -ForegroundColor Yellow
+    Write-Host "  ChatVisualizer startet ohne Spracherkennung." -ForegroundColor DarkGray
+  }
 }
 
 $mime = @{

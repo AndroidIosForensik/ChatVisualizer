@@ -5,6 +5,10 @@
 #   ./start.sh            freien Port ab 8777 suchen und Browser oeffnen
 #   ./start.sh 9000       diesen Port benutzen
 #
+# Fehlt das Spracherkennungsmodell, wird es beim ersten Start automatisch
+# geladen (rund 242 MB, siehe modelle/quellen.json). Ueberspringen mit
+# CHATVISUALIZER_KEIN_MODELL=1 ./start.sh
+#
 # Beenden: Strg+C
 
 set -eu
@@ -24,6 +28,16 @@ have() { command -v "$1" >/dev/null 2>&1; }
 PY=""
 if have python3; then PY=python3
 elif have python; then PY=python
+fi
+
+# Fehlende Teile nachladen (Spracherkennungsmodell), bevor der Server startet
+if [ -z "${CHATVISUALIZER_KEIN_MODELL:-}" ] && [ -f "$DIR/hole-modell.py" ]; then
+  if [ -n "$PY" ]; then
+    "$PY" "$DIR/hole-modell.py" || true
+  elif [ -f "$DIR/modelle/quellen.json" ] && [ ! -d "$DIR/modelle/Xenova" ]; then
+    echo "  Hinweis: Ohne Python laesst sich das Spracherkennungsmodell nicht"
+    echo "  automatisch laden. Die Transkription bleibt dann aus."
+  fi
 fi
 
 # Freien Port suchen (wenn keiner vorgegeben wurde und Python vorhanden ist)
