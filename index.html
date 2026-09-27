@@ -27,7 +27,7 @@
         <button id="exportAll" class="icon-btn" title="Alles als JSON exportieren">⤓</button>
         <button id="clearBtn" class="icon-btn danger" title="Alle Daten löschen">🗑</button>
         <button id="mediaBtn" class="btn" title="Medienordner verbinden (Bilder, Videos, Sprachnachrichten)">🖼</button>
-        <button class="btn primary import-trigger" title="CSV-Dateien importieren">+ CSV</button>
+        <button class="btn primary import-trigger" title="CSV oder WhatsApp-Export (TXT/ZIP), auch mit Anhängen">+ Import</button>
       </div>
     </header>
 
@@ -178,20 +178,41 @@
         <span class="w-logo" style="--c:#3A76F0">Signal</span>
         <span class="w-logo" style="--c:#E1306C">Instagram</span>
       </div>
-      <h1>Chats aus CSV-Dateien ansehen</h1>
+      <h1>CSV- und WhatsApp-Chats ansehen</h1>
       <p class="w-lead">Alles läuft lokal in deinem Browser – es werden keine Daten hochgeladen.</p>
 
       <div class="w-actions">
-        <button class="btn primary big import-trigger">CSV-Dateien auswählen</button>
+        <button class="btn primary big import-trigger">Chat-Dateien auswählen</button>
         <button class="btn big" id="mediaBtnWelcome">Medienordner verbinden</button>
         <button id="demoBtn" class="btn ghost big">Mit Demodaten ansehen</button>
       </div>
-      <p class="w-hint">…oder CSV-Dateien und den Medienordner einfach ins Fenster ziehen.<br>
+      <p class="w-hint">CSV, WhatsApp-TXT oder ZIP einfach ins Fenster ziehen.<br>
+        WhatsApp: „Chat exportieren“ mit Medien wählen und das ZIP öffnen – oder Text und Anhänge zusammen auswählen.<br>
         Bilder, Videos und Sprachnachrichten werden dann direkt im Chat angezeigt und abgespielt.</p>
 
       <button class="w-format-link help-open">Welche Spalten braucht die CSV-Datei?</button>
     </div>
   </section>
+
+  <dialog id="whatsappDialog" class="wa-import-dialog" aria-labelledby="waImportTitle">
+    <form method="dialog">
+      <h2 id="waImportTitle">WhatsApp-Chat importieren</h2>
+      <p id="waImportFile"></p>
+      <label for="waImportName">Chatname</label>
+      <input id="waImportName" required maxlength="200" autocomplete="off" autofocus>
+      <p class="wa-import-hint">Beim erneuten Import denselben Namen verwenden. Unterschiedliche Chats brauchen unterschiedliche Namen.</p>
+      <label for="waImportOrder">Datum im Export</label>
+      <select id="waImportOrder">
+        <option value="dmy">Tag / Monat / Jahr (z. B. 31.12.2026)</option>
+        <option value="mdy">Monat / Tag / Jahr (z. B. 12/31/2026)</option>
+      </select>
+      <p id="waImportDate" class="wa-import-hint"></p>
+      <footer>
+        <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
+        <button class="btn primary" value="import">Importieren</button>
+      </footer>
+    </form>
+  </dialog>
 
   <!-- ------------------------------------------------ Hilfe zum CSV-Format -->
   <div id="helpDialog" class="modal">
@@ -202,26 +223,42 @@
       </header>
 
       <div class="modal-body">
+        <p class="modal-lead"><b>WhatsApp-Textexporte brauchen keine CSV-Umwandlung.</b>
+          Die TXT- oder ZIP-Datei über „+ Import“ auswählen. Anhänge zusammen mit der TXT auswählen
+          oder den entpackten Exportordner über 🖼 verbinden. Vor dem Import Chatname und Datum prüfen.</p>
         <p class="modal-lead">Eine Kopfzeile mit den Spaltennamen, darunter eine Zeile je Nachricht.
-          <b>Drei Spalten müssen sein</b>, alles andere ist freiwillig und macht die Darstellung nur schöner.</p>
+          <b>Nur eine Spalte muss sein:</b> zu welchem Chat die Zeile gehört, als <code>unterhaltungs_id</code>
+          oder <code>chatname</code>. Alles andere ist freiwillig. Für einen Chat wie im Messenger reichen
+          <code>chatname</code>, <code>absender_id</code>, <code>von_mir</code>, <code>zeitstempel</code>,
+          <code>nachrichteninhalt</code> und <code>medienpfad</code>.</p>
 
         <table class="spalten">
           <thead><tr><th>Spalte</th><th>Bedeutung</th><th>Beispiel</th></tr></thead>
           <tbody>
             <tr class="pflicht">
-              <td><code>nachricht_id</code><span class="tag">Pflicht</span></td>
-              <td>Eindeutige Kennung der Nachricht. Wird zum Wiedererkennen beim erneuten Import gebraucht und von <code>antwort_auf_id</code> und <code>reaktion_auf_id</code> referenziert.</td>
-              <td><code>wa-001</code></td>
+              <td><code>unterhaltungs_id</code><span class="tag">Pflicht*</span></td>
+              <td>Zu welchem Chat die Nachricht gehört. Gleiche Kennung = gleicher Chat. *Fehlt sie, gilt <code>chatname</code> als Kennung.</td>
+              <td><code>familie</code></td>
             </tr>
             <tr class="pflicht">
-              <td><code>absender_id</code><span class="tag">Pflicht</span></td>
-              <td>Wer geschrieben hat. Name oder Kennung – was hier steht, erscheint als Absender im Chat.</td>
+              <td><code>chatname</code><span class="tag">Pflicht*</span></td>
+              <td>Name des Chats, steht in der Chatliste und in der Kopfzeile. Ohne ihn wird der Titel aus den Absendern gebildet. *Einer von beiden muss da sein.</td>
+              <td><code>Familie</code></td>
+            </tr>
+            <tr>
+              <td><code>absender_id</code></td>
+              <td>Wer geschrieben hat – was hier steht, erscheint als Absender. Leer: bei eigenen Nachrichten „Ich“, sonst der Chatname (im Einzelchat also der Gesprächspartner).</td>
               <td><code>Mama</code></td>
             </tr>
-            <tr class="pflicht">
-              <td><code>unterhaltungs_id</code><span class="tag">Pflicht</span></td>
-              <td>Zu welchem Chat die Nachricht gehört. Gleiche Kennung = gleicher Chat.</td>
-              <td><code>familie</code></td>
+            <tr>
+              <td><code>von_mir</code></td>
+              <td><code>1</code> für eigene Nachrichten: sie stehen rechts. Ohne die Spalte gilt, wer in den meisten Chats schreibt, oder die Auswahl unter „Ich:“.</td>
+              <td><code>1</code></td>
+            </tr>
+            <tr>
+              <td><code>nachricht_id</code></td>
+              <td>Eindeutige Kennung der Nachricht, nötig für <code>antwort_auf_id</code> und <code>reaktion_auf_id</code>. Ohne sie wird eine Kennung aus dem Inhalt gebildet.</td>
+              <td><code>wa-001</code></td>
             </tr>
             <tr>
               <td><code>zeitstempel</code></td>
@@ -235,7 +272,7 @@
             </tr>
             <tr>
               <td><code>nachricht_typ</code></td>
-              <td>Art der Nachricht. Erkannt werden <code>text</code>, <code>bild</code>, <code>video</code>, <code>audio</code>, <code>datei</code>, <code>system</code>, <code>standort</code>, <code>kontakt</code>, <code>umfrage</code>, <code>anruf</code>. Unbekannte Werte werden als Etikett angezeigt.</td>
+              <td>Art der Nachricht. Ohne Angabe entscheidet die Dateiendung im <code>medienpfad</code>. Erkannt werden <code>text</code>, <code>bild</code>, <code>video</code>, <code>audio</code>, <code>datei</code>, <code>system</code>, <code>standort</code>, <code>kontakt</code>, <code>umfrage</code>, <code>anruf</code>. Unbekannte Werte werden als Etikett angezeigt.</td>
               <td><code>audio</code></td>
             </tr>
             <tr>
@@ -270,12 +307,19 @@
         <ul class="modal-liste">
           <li><b>Trennzeichen</b> wird automatisch erkannt: Komma, Semikolon, Tabulator oder senkrechter Strich.</li>
           <li><b>Zeichensatz</b> UTF-8 (mit oder ohne BOM). Anführungszeichen nach RFC 4180, Zeilenumbrüche innerhalb von Feldern sind erlaubt.</li>
-          <li><b>Zeitformat</b> frei wählbar: <code>2026-08-30T18:12:04</code>, <code>30.08.2026 18:12</code> oder Unix-Zeit in Sekunden bzw. Millisekunden.</li>
-          <li><b>Englische Spaltennamen</b> gehen auch: <code>message_id</code>, <code>timestamp</code>, <code>sender_id</code>, <code>conversation_id</code>, <code>content</code>, <code>message_type</code>, <code>media_path</code>, <code>reply_to_id</code>, <code>reaction_to_id</code>, <code>status</code>, <code>platform</code>.</li>
-          <li><b>Mehrere Dateien</b> lassen sich zusammen importieren; dieselbe Datei zweimal zu importieren erzeugt keine Doppelten, sondern aktualisiert die Nachrichten (Schlüssel: Messenger + <code>nachricht_id</code>).</li>
+          <li><b>Zeitformat</b> frei wählbar: <code>2026-08-30T18:12:04</code>, <code>30.08.2026 18:12</code> oder Unix-Zeit in Sekunden bzw. Millisekunden. Neunstellige Zahlen wie <code>811805666.05</code> gelten als Apple-Zeit (Sekunden seit 1.1.2001, so speichern iPhone-Datenbanken) und werden selbst umgerechnet.</li>
+          <li><b>Englische Spaltennamen</b> gehen auch: <code>message_id</code>, <code>timestamp</code>, <code>sender_id</code>, <code>conversation_id</code>, <code>content</code>, <code>message_type</code>, <code>media_path</code>, <code>reply_to_id</code>, <code>reaction_to_id</code>, <code>status</code>, <code>platform</code>, <code>chat_name</code>, <code>from_me</code>.</li>
+          <li><b>Mehrere Dateien</b> lassen sich zusammen importieren; dieselbe Datei zweimal zu importieren erzeugt keine Doppelten, sondern aktualisiert die Nachrichten (Schlüssel: Messenger + <code>nachricht_id</code>, ohne ID der Inhalt).</li>
+          <li><b>Ja/nein-Spalten</b> wie <code>von_mir</code> verstehen <code>1</code>, <code>true</code>, <code>ja</code> und <code>x</code>.</li>
         </ul>
 
-        <h3>So sieht das aus</h3>
+        <h3>Kürzeste sinnvolle Form</h3>
+        <pre class="beispiel">chatname,absender_id,von_mir,zeitstempel,nachrichteninhalt,medienpfad
+Familie,Mama,0,2026-08-30T18:12:04,Kommst du Sonntag zum Essen?,
+Familie,,1,2026-08-30T18:14:20,"Ja, gerne!",
+Familie,Mama,0,2026-08-30T18:20:11,Der neue Tisch,medien/tisch.jpg</pre>
+
+        <h3>Alle Spalten</h3>
         <pre class="beispiel">nachricht_id,zeitstempel,absender_id,unterhaltungs_id,nachrichteninhalt,nachricht_typ,medienpfad,antwort_auf_id,reaktion_auf_id,status,messenger
 wa-001,2026-08-30T18:12:04,Mama,familie,Kommst du Sonntag zum Essen?,text,,,,gelesen,WhatsApp
 wa-002,2026-08-30T18:14:20,Ich,familie,"Ja, gerne!",text,,wa-001,,gesendet,WhatsApp
@@ -285,15 +329,15 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 
       <footer class="modal-foot">
         <button id="helpTemplate" class="btn">Vorlage als CSV speichern</button>
-        <button class="btn primary import-trigger" data-help-close>CSV-Dateien auswählen</button>
+        <button class="btn primary import-trigger" data-help-close>Chat-Dateien auswählen</button>
       </footer>
     </div>
   </div>
 
   <!-- ------------------------------------------------ Overlays -->
   <div id="dropzone" class="dropzone">
-    <div class="dz-inner"><div class="dz-icon">⤓</div><b>CSV-Dateien oder Medienordner hier ablegen</b>
-      <div class="dz-sub">Ordner werden als Medienquelle verbunden, enthaltene CSV-Dateien importiert.</div>
+    <div class="dz-inner"><div class="dz-icon">⤓</div><b>CSV, WhatsApp-TXT/ZIP oder Exportordner hier ablegen</b>
+      <div class="dz-sub">Text und Anhänge können zusammen importiert werden.</div>
     </div>
   </div>
   <div id="importBusy" class="busy"><div class="spinner"></div><span>Einen Moment…</span></div>
@@ -307,7 +351,7 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
     <div id="lbCaption" class="lb-caption"></div>
   </div>
 
-  <input id="fileInput" type="file" accept=".csv,.txt,.tsv,text/csv" multiple hidden>
+  <input id="fileInput" type="file" multiple hidden>
   <input id="dirInput" type="file" webkitdirectory directory multiple hidden>
 </div>
 
@@ -325,6 +369,8 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 <script src="js/daten/messengers.js"></script>
 <script src="js/daten/media.js"></script>
 <script src="js/daten/archive.js"></script>
+<script src="js/daten/whatsapp.js"></script>
+<script src="js/daten/aleapp.js"></script>
 <script src="js/daten/documents.js"></script>
 <script src="js/daten/transcribe.js"></script>
 <script src="js/daten/translate.js"></script>
@@ -343,6 +389,7 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 <script src="js/bedienung/fortschritt.js"></script>
 <script src="js/bedienung/hilfe.js"></script>
 <script src="js/bedienung/dokumente.js"></script>
+<script src="js/bedienung/whatsapp-import.js"></script>
 <script src="js/bedienung/import.js"></script>
 <script src="js/bedienung/medienordner.js"></script>
 <script src="js/bedienung/uebersetzen.js"></script>

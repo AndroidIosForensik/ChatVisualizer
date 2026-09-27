@@ -208,16 +208,25 @@ $mime = @{
   '.jpeg' = 'image/jpeg'
   '.gif'  = 'image/gif'
   '.webp' = 'image/webp'
+  '.avif' = 'image/avif'
+  '.heic' = 'image/heic'
+  '.heif' = 'image/heif'
   '.bmp'  = 'image/bmp'
   '.ico'  = 'image/x-icon'
   '.mp4'  = 'video/mp4'
+  '.m4v'  = 'video/mp4'
+  '.3gp'  = 'video/3gpp'
   '.webm' = 'video/webm'
   '.mov'  = 'video/quicktime'
   '.mp3'  = 'audio/mpeg'
   '.ogg'  = 'audio/ogg'
   '.opus' = 'audio/ogg'
+  '.oga'  = 'audio/ogg'
   '.wav'  = 'audio/wav'
   '.m4a'  = 'audio/mp4'
+  '.aac'  = 'audio/aac'
+  '.flac' = 'audio/flac'
+  '.amr'  = 'audio/amr'
   '.pdf'  = 'application/pdf'
 }
 
@@ -272,31 +281,77 @@ try {
     $context = $listener.GetContext()
     $response = $context.Response
     try {
-      $path = [System.Uri]::UnescapeDataString($context.Request.Url.AbsolutePath)
+      # RawUrl bewahrt maskierte # und ? im Dateinamen auch unter Windows PowerShell.
+      $path = [System.Uri]::UnescapeDataString(($context.Request.RawUrl -split '\?', 2)[0])
       if ($path -eq '/') { $path = '/index.html' }
 
       $full = Join-Path $root ($path.TrimStart('/') -replace '/', '\')
       $ok = $false
       $resolved = $null
-      if (Test-Path $full -PathType Leaf) {
-        $resolved = (Resolve-Path $full).Path
+      if (Test-Path -LiteralPath $full -PathType Leaf) {
+        $resolved = (Resolve-Path -LiteralPath $full).Path
         # Nur Dateien innerhalb des Projektordners ausliefern
-        if ($resolved.StartsWith($resolvedRoot, [System.StringComparison]::OrdinalIgnoreCase)) { $ok = $true }
+        if ($resolved.StartsWith($resolvedRoot.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase)) { $ok = $true }
       }
 
       if ($ok) {
         $ext = [System.IO.Path]::GetExtension($resolved).ToLower()
         $type = $mime[$ext]
         if (-not $type) { $type = 'application/octet-stream' }
-        $bytes = [System.IO.File]::ReadAllBytes($resolved)
         $response.ContentType = $type
+        $response.Headers.Add('Accept-Ranges', 'bytes')
         if ($ext -eq '.onnx' -or $ext -eq '.wasm') {
           $response.Headers.Add('Cache-Control', 'public, max-age=31536000, immutable')
         } else {
           $response.Headers.Add('Cache-Control', 'no-cache')
         }
-        $response.ContentLength64 = $bytes.Length
-        $response.OutputStream.Write($bytes, 0, $bytes.Length)
+        # Medienplayer laden Dateiausschnitte (auch vom Ende) für Start und Spulen.
+        # In Blöcken senden, statt große Videos komplett in den Speicher zu lesen.
+        $stream = [System.IO.File]::OpenRead($resolved)
+        try {
+          [long]$length = $stream.Length
+          [long]$from = 0
+          [long]$to = $length - 1
+          $range = $context.Request.Headers['Range']
+          $valid = $true
+          if ($range -and $range -notmatch ',') {
+            if ($range -match '^bytes=(\d*)-(\d*)$' -and $length -gt 0) {
+              $startText = $Matches[1]; $endText = $Matches[2]
+              if ($startText -eq '') {
+                [long]$suffix = 0
+                $valid = [long]::TryParse($endText, [ref]$suffix) -and $suffix -gt 0
+                if ($valid) { $from = [Math]::Max(0, $length - $suffix) }
+              } else {
+                $valid = [long]::TryParse($startText, [ref]$from)
+                if ($endText -ne '') { $valid = [long]::TryParse($endText, [ref]$to) -and $valid }
+                $to = [Math]::Min($to, $length - 1)
+                $valid = $valid -and $from -lt $length -and $to -ge $from
+              }
+            } else { $valid = $false }
+            if ($valid) {
+              $response.StatusCode = 206
+              $response.Headers.Add('Content-Range', "bytes $from-$to/$length")
+            }
+          }
+          if (-not $valid) {
+            $response.StatusCode = 416
+            $response.Headers.Add('Content-Range', "bytes */$length")
+            $response.ContentLength64 = 0
+          } else {
+            [long]$remaining = $to - $from + 1
+            $response.ContentLength64 = $remaining
+            if ($context.Request.HttpMethod -ne 'HEAD') {
+              [void]$stream.Seek($from, [System.IO.SeekOrigin]::Begin)
+              $buffer = New-Object byte[] 65536
+              while ($remaining -gt 0) {
+                $read = $stream.Read($buffer, 0, [int][Math]::Min($buffer.Length, $remaining))
+                if ($read -le 0) { break }
+                $response.OutputStream.Write($buffer, 0, $read)
+                $remaining -= $read
+              }
+            }
+          }
+        } finally { $stream.Close() }
       } else {
         $response.StatusCode = 404
         $bytes = [System.Text.Encoding]::UTF8.GetBytes('404 - nicht gefunden')

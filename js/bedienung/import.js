@@ -1,4 +1,4 @@
-/* Import von CSV-Dateien, Ablegen per Maus, Export und Demodaten.
+/* Import von CSV- und WhatsApp-Exporten, Ablegen per Maus, Export und Demodaten.
 
    Ablauf eines Imports:
      Datei lesen → CSV.toObjects → Model.buildMapping (Spalten zuordnen)
@@ -52,23 +52,77 @@
    * Eine oder mehrere CSV-Dateien einlesen und in den Bestand übernehmen.
    * @param {FileList|File[]} files
    */
-  async function importiereDateien(files) {
+  let importQueue = Promise.resolve();
+
+  function importiereDateien(files, options) {
+    // FileList vor dem Zurücksetzen des Eingabefeldes sichern. Importe und
+    // ihre Dialoge nacheinander abarbeiten, auch bei mehreren Drop-Ereignissen.
+    const snapshot = Array.from(files);
+    const next = importQueue.then(async () => {
+      try { await importiere(snapshot, options || {}); }
+      catch (e) { Meldung.zeige('Import fehlgeschlagen: ' + esc(e.message || e), 'error'); }
+      finally { $('#importBusy').classList.remove('show'); }
+    });
+    importQueue = next;
+    return next;
+  }
+
+  async function importiere(files, options) {
     const liste = Array.from(files).filter(f =>
-      /\.(csv|txt|tsv)$/i.test(f.name) || f.type.indexOf('csv') !== -1);
-    if (!liste.length) { Meldung.zeige('Keine CSV-Dateien gefunden.', 'error'); return; }
+      /\.(csv|txt|tsv|zip)$/i.test(f.name) || (f.type || '').indexOf('csv') !== -1);
+    if (!liste.length) {
+      if (files.length) await Medienordner.dateienAnhaengen(files, false);
+      else Meldung.zeige('Keine Importdateien gefunden.', 'error');
+      return;
+    }
 
     $('#importBusy').classList.add('show');
     let neu = 0, aktualisiert = 0, uebersprungen = 0, lauf = Date.now();
     const probleme = [];
     const eingang = [];
+    const kandidaten = [];
+    const chatDateien = new Set();
+    let medienGeaendert = false;
 
     for (const datei of liste) {
+      if (/\.zip$/i.test(datei.name)) {
+        try {
+          const archive = await WhatsAppImport.unzip(datei);
+          for (const chat of archive.chats) kandidaten.push({ ...chat, archive });
+        } catch (e) { probleme.push('<b>' + esc(datei.name) + '</b>: ' + esc(e.message)); }
+      } else kandidaten.push({ file: datei, path: (options.paths && options.paths.get(datei)) || datei.webkitRelativePath || datei.name });
+    }
+
+    for (const kandidat of kandidaten) {
+      const datei = kandidat.file;
       try {
         const text = await Helfer.leseTextdatei(datei);
-        const { header, data } = CSV.toObjects(text);
+        const info = kandidat.info || (/\.txt$/i.test(datei.name) ? WhatsApp.inspect(text) : null);
+        if (info) {
+          chatDateien.add(datei);
+          const einstellungen = await WhatsAppImport.configure(info, kandidat.displayPath || kandidat.path, kandidat.suggestedName);
+          if (!einstellungen) continue;
+          const slash = kandidat.path.lastIndexOf('/');
+          const messages = WhatsApp.parse(info, { ...einstellungen,
+            directory: slash >= 0 ? kandidat.path.slice(0, slash) : '' });
+          for (const m of messages) eingang.push(m);
+          if (kandidat.archive && !kandidat.archive.attached) {
+            Media.attachSources(kandidat.archive.sources, kandidat.archive.label);
+            kandidat.archive.attached = true;
+            medienGeaendert = true;
+          }
+          continue;
+        }
+        let { header, data } = CSV.toObjects(text);
+        const aleapp = Aleapp.umsetzen(header, data);
+        if (aleapp) ({ header, data } = aleapp);
         const { map, missingRequired, missing } = M.buildMapping(header);
 
         if (missingRequired.length) {
+          // Beliebige Textanhänge eines Exportordners sind keine Chatdateien,
+          // ebenso die übrigen Tabellen eines ALEAPP-Berichts (Browser, WLAN …).
+          if ((/\.txt$/i.test(datei.name) || Aleapp.istBericht(header, kandidat.path)) &&
+            (options.fromFolder || files.length > 1)) continue;
           // Die erwarteten Spaltennamen zeigen, nicht die internen Feldnamen
           probleme.push('<b>' + esc(datei.name) + '</b>: Pflichtspalten fehlen (' +
             esc(missingRequired.map(spaltenName).join(', ')) +
@@ -76,8 +130,9 @@
           uebersprungen += data.length;
           continue;
         }
+        chatDateien.add(datei);
         if (missing.length) {
-          probleme.push('<b>' + esc(datei.name) + '</b>: optionale Spalten fehlen (' +
+          probleme.push('<b>' + esc(datei.name) + '</b>: empfohlene Spalten fehlen (' +
             esc(missing.map(spaltenName).join(', ')) + ')');
         }
 
@@ -86,15 +141,32 @@
           .replace(/\.(csv|txt|tsv)$/i, '')
           .replace(/[_\-.]?(export|chat|chats|messages|nachrichten|\d+)/gi, '').trim();
 
-        for (const zeile of data) {
-          const m = M.rowToMessage(zeile, map, ersatzName, lauf++);
+        const vorkommen = new Map();
+        for (let zeile = 0; zeile < data.length; zeile++) {
+          const m = M.rowToMessage(data[zeile], map, ersatzName, lauf++);
           // Völlig leere Zeilen (kein Text, kein Medium, keine Reaktion) überspringen
           if (!m.text && !m.media && !m.reactionTo && m.type === 'text') { uebersprungen++; continue; }
+          m.sourceOrder = zeile;   // gleiche Zeitstempel behalten die Reihenfolge der Datei
+          if (!map.id) {
+            // Ohne ID-Spalte: stabile ID aus dem Inhalt, damit ein erneuter
+            // Import aktualisiert statt zu verdoppeln.
+            const signatur = WhatsApp.fingerprint(JSON.stringify([m.conv, m.tsRaw, m.sender, m.text, m.media, m.reactionTo]));
+            const n = (vorkommen.get(signatur) || 0) + 1;
+            vorkommen.set(signatur, n);
+            m.id = 'auto-' + signatur + '-' + n;
+            m.key = m.messenger + '::' + m.id;
+          }
           eingang.push(m);
         }
       } catch (e) {
         probleme.push('<b>' + esc(datei.name) + '</b>: ' + esc(e.message || 'Lesefehler'));
       }
+    }
+
+    const anhaenge = files.filter(f => !chatDateien.has(f) && !/\.(csv|tsv|zip)$/i.test(f.name));
+    if (!options.fromFolder && anhaenge.length && eingang.length) {
+      Media.attachFileList(anhaenge);
+      medienGeaendert = true;
     }
 
     /* Zusammenführen: bekannte Schlüssel ersetzen, neue anhängen */
@@ -118,11 +190,13 @@
     }
 
     M.rebuild();
+    M.meFromColumn();
     M.guessMe();
     for (const c of state.conversations) c.title = M.conversationTitle(c);
     await speichere(betroffen);
 
     Render.renderAll();
+    if (medienGeaendert) Medienordner.ansichtenAuffrischen();
     $('#importBusy').classList.remove('show');
 
     let text = '<b>' + neu + '</b> neue Nachrichten importiert';
@@ -187,9 +261,7 @@
       if (letzterHandle) await Store.saveHandle('mediaRoot', letzterHandle);
       await Medienordner.nachAnbindung(medien, true);
     }
-    const csv = dateien.filter(f => /\.(csv|txt|tsv)$/i.test(f.name));
-    if (csv.length) await importiereDateien(csv);
-    else if (!ordner && dateien.length) Meldung.zeige('Keine CSV-Dateien gefunden.', 'error');
+    if (dateien.length) await importiereDateien(dateien);
   }
 
   /* ---- Export --------------------------------------------------------- */

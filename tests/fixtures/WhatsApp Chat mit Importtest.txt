@@ -1,0 +1,7 @@
+21.09.2026, 09:00 - Nachrichten und Anrufe sind Ende-zu-Ende-verschlüsselt.
+21.09.2026, 09:01 - Anna: Hallo aus dem WhatsApp-Export 👋
+Diese Nachricht hat eine zweite Zeile.
+21.09.2026, 09:02 - Ben: gartentisch.png (Datei angehängt)
+Der neue Gartentisch.
+21.09.2026, 09:03 - Anna: sprachnachricht_papa.wav (Datei angehängt)
+21.09.2026, 09:04 - Ben: migrationsplan_v3.pdf (Datei angehängt)

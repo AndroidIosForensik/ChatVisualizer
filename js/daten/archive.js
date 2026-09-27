@@ -46,6 +46,7 @@
     for (let i = 0; i < anzahl && p + 46 <= bytes.length; i++) {
       if (d.getUint32(p, true) !== CEN) break;
       const methode = d.getUint16(p + 10, true);
+      const crc = d.getUint32(p + 16, true);
       const packedSize = d.getUint32(p + 20, true);
       const size = d.getUint32(p + 24, true);
       const nameLen = d.getUint16(p + 28, true);
@@ -53,29 +54,52 @@
       const kommLen = d.getUint16(p + 32, true);
       const lokal = d.getUint32(p + 42, true);
       const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
-      eintraege.push({ name: name, methode: methode, packedSize: packedSize, size: size, lokal: lokal });
+      eintraege.push({ name: name, methode: methode, crc: crc, packedSize: packedSize, size: size, lokal: lokal });
       p += 46 + nameLen + extraLen + kommLen;
     }
     return eintraege;
   }
 
-  async function inflate(roh) {
+  async function inflate(roh, maxBytes) {
     if (!global.DecompressionStream) throw new Error('Dieser Browser kann ZIP nicht entpacken');
     const stream = new Blob([roh]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
+    const reader = stream.getReader();
+    const chunks = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > maxBytes) throw new Error('Entpackte Datei ist zu groß.');
+        chunks.push(value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    const out = new Uint8Array(total);
+    let pos = 0;
+    for (const chunk of chunks) { out.set(chunk, pos); pos += chunk.length; }
+    return out;
   }
 
   /* Inhalt eines Eintrags holen */
-  async function read(bytes, eintrag) {
+  async function read(bytes, eintrag, maxBytes = 256 * 1024 * 1024) {
     const d = dv(bytes);
     const p = eintrag.lokal;
     if (d.getUint32(p, true) !== 0x04034b50) throw new Error('Beschädigter ZIP-Eintrag');
     const nameLen = d.getUint16(p + 26, true);
     const extraLen = d.getUint16(p + 28, true);
     const start = p + 30 + nameLen + extraLen;
-    const roh = bytes.subarray(start, start + (eintrag.packedSize || (bytes.length - start)));
+    if (eintrag.size > maxBytes || start + eintrag.packedSize > bytes.length) {
+      throw new Error('ZIP-Eintrag ist zu groß oder beschädigt.');
+    }
+    if (d.getUint16(p + 6, true) & 1) throw new Error('Verschlüsselte ZIP-Dateien werden nicht unterstützt.');
+    const roh = bytes.subarray(start, start + eintrag.packedSize);
+    if (eintrag.methode === 0 && roh.length > maxBytes) throw new Error('Datei ist zu groß.');
     if (eintrag.methode === 0) return roh.slice();
-    if (eintrag.methode === 8) return inflate(roh);
+    if (eintrag.methode === 8) return inflate(roh, maxBytes);
     throw new Error('Unbekanntes Packverfahren (' + eintrag.methode + ')');
   }
 

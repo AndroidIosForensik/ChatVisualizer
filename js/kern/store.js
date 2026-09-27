@@ -14,7 +14,7 @@
 
   /* Nur die reinen Datenfelder speichern (keine Laufzeit-Verweise) */
   const FIELDS = ['key', 'id', 'messenger', 'conv', 'convKey', 'ts', 'tsRaw',
-                  'sender', 'text', 'type', 'media', 'replyTo', 'reactionTo', 'status'];
+                  'sender', 'text', 'type', 'media', 'replyTo', 'reactionTo', 'status', 'sourceOrder', 'convName', 'fromMe'];
 
   function plain(m) {
     const o = {};

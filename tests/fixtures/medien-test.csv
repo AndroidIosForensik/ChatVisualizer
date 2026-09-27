@@ -1,0 +1,6 @@
+nachricht_id,zeitstempel,absender_id,unterhaltungs_id,nachrichteninhalt,nachricht_typ,medienpfad,messenger
+media-gif,2026-09-21T10:00:00,Anna,medien-test,Echtes GIF läuft endlos,gif,tests/fixtures/animation-zweimal.gif,WhatsApp
+media-video-gif,2026-09-21T10:01:00,Anna,medien-test,Video als GIF läuft stumm und endlos,gif,beispiel-daten/medien/clip_sonnenaufgang.webm,WhatsApp
+media-image,2026-09-21T10:02:00,Anna,medien-test,Bild mit Sonderzeichen im Dateinamen,bild,tests/fixtures/Foto #1 [Test].png,WhatsApp
+media-video,2026-09-21T10:03:00,Anna,medien-test,Normales Video mit Bedienelementen,video,beispiel-daten/medien/clip_sonnenaufgang.webm,WhatsApp
+media-audio,2026-09-21T10:04:00,Anna,medien-test,Audio mit Bedienelementen,audio,beispiel-daten/medien/sprachnachricht_papa.wav,WhatsApp

@@ -79,7 +79,7 @@
         '<span>' + formatiere(m.text || 'Systemnachricht', q) + '</span></div>';
     }
 
-    const eigen = me != null && m.sender === me;
+    const eigen = m.fromMe || (me != null && m.sender === me);
     const gruppiert = prev && prev.sender === m.sender && prev.type !== 'system' &&
                       m.ts && prev.ts && (m.ts - prev.ts) < GRUPPE_MS && !m.replyTo;
     const geloescht = /(gelöscht|geloescht|deleted|zurückgezogen)/.test(norm(m.status));

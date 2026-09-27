@@ -76,12 +76,23 @@
     return DT_DATE.format(d);
   }
 
-  /* Zeitstempel tolerant parsen: ISO, deutsch, Unix-Epoch */
+  /* Sekunden vom 1.1.1970 bis zum 1.1.2001 – dem Nullpunkt der Apple-Zeit */
+  const APPLE_EPOCH = 978307200;
+
+  /* Zeitstempel tolerant parsen: ISO, deutsch, Unix-Epoch, Apple-Zeit */
   function parseTimestamp(raw) {
     if (raw == null || raw === '') return 0;
     const s = String(raw).trim();
-    if (/^\d{13}$/.test(s)) return parseInt(s, 10);
-    if (/^\d{10}$/.test(s)) return parseInt(s, 10) * 1000;
+    // Zahlen nach Stellen vor dem Komma: 13 = Unix-Millisekunden (Android),
+    // 10 = Unix-Sekunden, 9 = Apple-Zeit in Sekunden seit 1.1.2001 (iPhone,
+    // deckt 2004–2032 ab). Nachkommastellen mit Punkt oder Komma sind erlaubt.
+    const zahl = s.match(/^(\d{9}|\d{10}|\d{13})(?:[.,](\d+))?$/);
+    if (zahl) {
+      const wert = parseFloat(zahl[1] + '.' + (zahl[2] || '0'));
+      if (zahl[1].length === 13) return Math.round(wert);
+      if (zahl[1].length === 10) return Math.round(wert * 1000);
+      return Math.round((wert + APPLE_EPOCH) * 1000);
+    }
     let m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
     if (m) {
       let y = +m[3]; if (y < 100) y += 2000;
@@ -103,6 +114,8 @@
     ts:         ['zeitstempel', 'timestamp', 'datum_zeit', 'datum', 'date', 'datetime', 'zeit', 'time'],
     sender:     ['absender_id', 'absender', 'sender_id', 'sender', 'von', 'from', 'author'],
     conv:       ['unterhaltungs_id', 'unterhaltung_id', 'unterhaltung', 'conversation_id', 'chat_id', 'thread_id', 'chat'],
+    convName:   ['chatname', 'chat_name', 'unterhaltungs_name', 'unterhaltung_name', 'gruppenname', 'conversation_name', 'chat_title'],
+    fromMe:     ['von_mir', 'from_me', 'is_from_me', 'ausgehend', 'outgoing'],
     text:       ['nachrichteninhalt', 'nachrichten_inhalt', 'inhalt', 'nachricht', 'content', 'message', 'text', 'body'],
     type:       ['nachricht_typ', 'nachrichtentyp', 'typ', 'message_type', 'type'],
     media:      ['medienpfad', 'medien_pfad', 'media_path', 'media', 'anhang', 'attachment', 'datei', 'file'],
@@ -112,21 +125,37 @@
     messenger:  ['messenger', 'plattform', 'platform', 'app', 'quelle', 'source', 'dienst']
   };
 
-  const REQUIRED = ['id', 'sender', 'conv'];
+  /* Pflicht ist nur, zu welchem Chat eine Zeile gehört (Kennung oder Name).
+     Alles andere hat einen Ersatz: ID aus dem Inhalt, Absender aus dem
+     Chatnamen, Typ aus der Dateiendung. Gemeldet wird nur, was sichtbar fehlt. */
+  const REQUIRED = ['conv'];
+  const EMPFOHLEN = ['ts', 'text'];
 
   function buildMapping(header) {
     const map = {};
-    const missing = [];
     for (const field of Object.keys(FIELDS)) {
       const col = FIELDS[field].find(c => header.indexOf(c) !== -1);
-      if (col) map[field] = col; else missing.push(field);
+      if (col) map[field] = col;
     }
-    return { map, missing, missingRequired: REQUIRED.filter(f => !map[f]) };
+    const missingRequired = map.conv || map.convName ? [] : REQUIRED;
+    return { map, missing: EMPFOHLEN.filter(f => !map[f]), missingRequired };
+  }
+
+  /* Ohne Typspalte entscheidet die Endung; WhatsApp legt GIFs als .mp4 im
+     Ordner „WhatsApp Animated Gifs" ab. */
+  function typAusPfad(media) {
+    const p = String(media).toLowerCase();
+    if (/animated gifs?[\\/]/.test(p) || /\.gif$/.test(p)) return 'gif';
+    if (/\.(jpe?g|png|webp|bmp|avif|svg|heic|heif)$/.test(p)) return 'bild';
+    if (/\.(mp4|mov|webm|mkv|avi|m4v|3gp|mpe?g)$/.test(p)) return 'video';
+    if (/\.(ogg|opus|oga|mp3|m4a|aac|wav|amr|flac|wma)$/.test(p)) return 'audio';
+    return 'datei';
   }
 
   function normalizeType(raw, media) {
     const s = String(raw || '').trim().toLowerCase();
-    if (!s) return media ? 'datei' : 'text';
+    if (!s) return media ? typAusPfad(media) : 'text';
+    if (/^(gif|animation|animated[_ -]?gif)$/.test(s)) return 'gif';
     if (/(bild|image|photo|foto|jpe?g|png|gif|webp|sticker|aufkleber)/.test(s)) return 'bild';
     if (/(video|clip|mp4|mov)/.test(s)) return 'video';
     if (/(audio|sprach|voice|ptt|ogg|mp3)/.test(s)) return 'audio';
@@ -145,18 +174,27 @@
     const messenger = Messengers.normalize(g('messenger') || fallbackMessenger);
     const id = String(g('id') || '').trim() || ('auto-' + seq);
     const media = g('media').trim();
-    const conv = String(g('conv') || '').trim() || '(ohne Unterhaltung)';
+    const convName = String(g('convName') || '').trim();
+    const conv = String(g('conv') || '').trim() || convName || '(ohne Unterhaltung)';
+    const type = normalizeType(g('type'), media);
+    const fromMe = /^(1|true|wahr|ja|yes|x)$/i.test(String(g('fromMe')).trim());
+    // Ohne Absender: eigene Nachricht → „Ich", sonst der Chat selbst (im
+    // Einzelchat ist das der Gesprächspartner).
+    const sender = String(g('sender') || '').trim() ||
+      (fromMe ? 'Ich' : type === 'system' ? 'system' : convName || (map.sender ? 'Unbekannt' : conv));
     return {
       key: messenger + '::' + id,
       id: id,
       messenger: messenger,
       conv: conv,
       convKey: messenger + '::' + conv,
+      convName: convName,
+      fromMe: fromMe,
       ts: parseTimestamp(g('ts')),
       tsRaw: g('ts'),
-      sender: String(g('sender') || '').trim() || 'Unbekannt',
+      sender: sender,
       text: g('text'),
-      type: normalizeType(g('type'), media),
+      type: type,
       media: media,
       replyTo: g('replyTo').trim(),
       reactionTo: g('reactionTo').trim(),
@@ -173,6 +211,7 @@
   }
 
   function conversationTitle(c) {
+    if (c.name) return c.name;           // Spalte chatname
     const me = whoAmI(c.key);
     const others = Array.from(c.senders.keys()).filter(s => s !== me && s !== 'Unbekannt' && s !== 'system');
     if (!others.length) return c.conv;
@@ -204,7 +243,7 @@
         c = {
           key: m.convKey, conv: m.conv, messenger: m.messenger,
           messages: [], reactionRows: [], senders: new Map(),
-          media: [], first: Infinity, last: 0
+          media: [], first: Infinity, last: 0, name: '', mine: new Map()
         };
         convs.set(m.convKey, c);
       }
@@ -212,6 +251,8 @@
       else c.messages.push(m);
       if (m.ts) { if (m.ts < c.first) c.first = m.ts; if (m.ts > c.last) c.last = m.ts; }
       c.senders.set(m.sender, (c.senders.get(m.sender) || 0) + 1);
+      if (m.fromMe) c.mine.set(m.sender, (c.mine.get(m.sender) || 0) + 1);
+      if (m.convName) c.name = m.convName;
       if (m.media && !m.reactionTo) c.media.push(m);
     }
 
@@ -229,7 +270,9 @@
         if (target) (target.reactions || (target.reactions = [])).push(r);
         else c.messages.push(r); // Ziel unbekannt: als eigene Nachricht anzeigen
       }
-      c.messages.sort((a, b) => (a.ts - b.ts) || String(a.id).localeCompare(String(b.id), 'de', { numeric: true }));
+      c.messages.sort((a, b) => (a.ts - b.ts) ||
+        (Number.isInteger(a.sourceOrder) && Number.isInteger(b.sourceOrder) ? a.sourceOrder - b.sourceOrder : 0) ||
+        String(a.id).localeCompare(String(b.id), 'de', { numeric: true }));
       for (let i = 0; i < c.messages.length; i++) c.messages[i]._i = i;
       if (c.first === Infinity) c.first = 0;
       c.count = c.messages.length;
@@ -241,6 +284,19 @@
     state.convByKey = convs;
     state.conversations = Array.from(convs.values());
     sortConversations();
+  }
+
+  /* Spalte von_mir: wer dort am häufigsten steht, ist in diesem Chat „ich".
+     Eine Auswahl über „Ich:" in der Kopfzeile bleibt unangetastet. */
+  function meFromColumn() {
+    let changed = false;
+    for (const c of state.conversations) {
+      if (!c.mine.size || Object.prototype.hasOwnProperty.call(state.me, c.key)) continue;
+      state.me[c.key] = Array.from(c.mine).sort((a, b) => b[1] - a[1])[0][0];
+      c.title = conversationTitle(c);
+      changed = true;
+    }
+    if (changed) Store.settings.set('me', state.me);
   }
 
   /* Heuristik: Wer in den meisten Unterhaltungen schreibt, ist vermutlich der Nutzer */
@@ -265,6 +321,6 @@
     dayLabel: dayLabel, relative: relative, parseTimestamp: parseTimestamp,
     buildMapping: buildMapping, rowToMessage: rowToMessage, normalizeType: normalizeType,
     rebuild: rebuild, sortConversations: sortConversations, whoAmI: whoAmI,
-    conversationTitle: conversationTitle, guessMe: guessMe, FIELDS: FIELDS
+    conversationTitle: conversationTitle, guessMe: guessMe, meFromColumn: meFromColumn, FIELDS: FIELDS
   };
 })(window);

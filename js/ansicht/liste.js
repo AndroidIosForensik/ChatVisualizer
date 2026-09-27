@@ -88,7 +88,7 @@
 
       // Ohne Suchtreffer steht vorn, wer geschrieben hat; mit Auszug wäre das nur im Weg
       const vorsatz = eintrag.auszug ? ''
-        : (letzte && letzte.sender === ich ? 'Du: '
+        : (letzte && (letzte.fromMe || letzte.sender === ich) ? 'Du: '
           : (c.senders.size > 2 && letzte ? esc(letzte.sender) + ': ' : ''));
 
       const vorschau = eintrag.auszug

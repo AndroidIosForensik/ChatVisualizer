@@ -84,7 +84,7 @@
   function direkteURL(pfad) {
     const p = String(pfad || '').replace(/\\/g, '/');
     if (/^[a-zA-Z]:\//.test(p) || p.startsWith('/') || /^[a-z]+:/i.test(p)) return null;
-    return encodeURI(p);
+    return p ? p.split('/').map(encodeURIComponent).join('/') : null;
   }
 
   /** Bytes lesbar machen: 1.234.567 → „1,2 MB". */

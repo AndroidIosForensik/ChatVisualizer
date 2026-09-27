@@ -1,6 +1,7 @@
 # ChatVisualizer
 
-Liest Chat-Exporte im CSV-Format ein und zeigt sie als Messenger-Oberfläche an:
+Liest Chat-Exporte im CSV-Format sowie WhatsApp-Textexporte (TXT oder ZIP mit Medien)
+ein und zeigt sie als Messenger-Oberfläche an:
 mit Logo, Chatliste, Suche und Detailspalte. Alles läuft im Browser auf dem
 eigenen Rechner, es wird nichts hochgeladen.
 
@@ -52,7 +53,7 @@ demselben Muster ein.
 
 | Aktion | Wie |
 | --- | --- |
-| Importieren | Button **+ CSV** oder Dateien ins Fenster ziehen, auch mehrere gleichzeitig |
+| Importieren | Button **+ Import** oder Dateien ins Fenster ziehen: CSV, WhatsApp-TXT/ZIP und Anhänge, auch mehrere gleichzeitig |
 | Format nachschlagen | Button **?** in der Seitenleiste: erklärt jede Spalte mit Bedeutung und Beispiel und speichert auf Wunsch eine Vorlage als CSV |
 | Medienordner | Button **🖼** oder den Ordner ins Fenster ziehen. Bilder, Videos, PDFs und Sprachnachrichten erscheinen danach im Chat |
 | Dokumente | PDFs zeigen eine Seitenvorschau, Word/Excel/Text eine Leseprobe, ein Klick öffnet den Inhalt. Alle Dokumente werden im Hintergrund gelesen und sind damit durchsuchbar |
@@ -74,41 +75,122 @@ Zitierte Nachrichten (`antwort_auf_id`) sind anklickbar und springen zum Origina
 Reaktionen (`reaktion_auf_id`) hängen als Emoji an der Zielnachricht, statt als eigene
 Nachricht zu erscheinen.
 
+## WhatsApp-Textexporte mit Medien
+
+In WhatsApp die Unterhaltung über **Chat exportieren** sichern und bei Bedarf
+**Medien einschließen** wählen. Anschließend im ChatVisualizer:
+
+- **ZIP:** Über **+ Import** die ZIP-Datei auswählen oder ins Fenster ziehen. Der
+  Chattext wird gelesen; Bilder, Videos, Audio und Dokumente werden beim Anzeigen
+  direkt aus dem ZIP entpackt. Alles bleibt lokal.
+- **TXT und einzelne Anhänge:** Die TXT-Datei und die dazugehörigen Mediendateien
+  gemeinsam auswählen oder zusammen ins Fenster ziehen. Anhänge können auch später
+  per Drag & Drop ergänzt werden.
+- **Entpackter Ordner:** Den kompletten Exportordner ins Fenster ziehen oder über
+  **🖼** verbinden. Enthaltene WhatsApp-Texte werden automatisch erkannt.
+
+Vor jedem WhatsApp-Import erscheinen Chatname und Datumsformat. Beim erneuten Import
+denselben Chatnamen verwenden; verschiedene Unterhaltungen brauchen unterschiedliche
+Namen. Besonders iPhone-Dateien mit dem allgemeinen Namen `_chat.txt` sollten hier
+einen aussagekräftigen Namen bekommen. Bei Daten wie `03/04/2026` ausdrücklich prüfen,
+ob Tag oder Monat zuerst steht.
+
+Unterstützt werden die üblichen numerischen Android- und iPhone-Zeitstempel mit Punkt,
+Schrägstrich oder Bindestrich, zwei- oder vierstelliger Jahreszahl, optionalen Sekunden
+und AM/PM. Mehrzeilige Nachrichten und Systemmeldungen bleiben erhalten. Medienmarker
+wie `Foto.jpg (Datei angehängt)`, `(file attached)`, `<Anhang: Foto.jpg>` und
+`<attached: Foto.jpg>` werden den Anhängen zugeordnet. Nicht unterstützte Texte werden
+nicht als Chat übernommen. Sprachvarianten mit anderen Medienmarkern sind noch nicht
+abgedeckt. Platzhalter wie „Medien ausgeschlossen“ bleiben als Text sichtbar; daraus
+lässt sich eine fehlende Datei nicht rekonstruieren.
+
+WhatsApp-Textexporte enthalten keine verlässlichen Nachrichten-IDs. Der Import bildet
+diese aus Chatname, Zeitpunkt, Absender, Inhalt und Vorkommen. Derselbe Export wird
+dadurch ohne Duplikate erneut eingelesen; veränderte Texte gelten als neue Nachrichten.
+Zitierverknüpfungen, Reaktionen und Lesestatus werden aus dem Text nicht rekonstruiert.
+
+Chats werden dauerhaft gespeichert. ZIP-Inhalte und lose Anhänge gelten für die
+Sitzung: nach einem Neustart das ZIP erneut importieren, Anhänge erneut ablegen oder
+den entpackten Medienordner verbinden. Große ZIPs (über 512 MB bzw. 1 GB entpackt)
+vorher entpacken und als Ordner verbinden; einzelne ZIP-Anhänge dürfen höchstens
+256 MB groß sein. Passwortgeschützte ZIPs werden nicht unterstützt.
+
+Ein kleines Beispiel liegt in `tests/fixtures/WhatsApp Chat mit Importtest.txt`.
+Die dort genannten Anhänge liegen in `beispiel-daten/medien/`.
+
+## ALEAPP-Berichte
+
+Die TSV-Dateien, die ALEAPP (auch aus Autopsy heraus) im Ordner `_TSV Exports` ablegt,
+werden direkt erkannt. Am einfachsten zieht man den ganzen Berichtsordner
+`ALEAPP_Reports_…` ins Fenster: Die Chat-Tabellen werden importiert, alle anderen
+Tabellen (Browser, WLAN, Apps …) still übergangen, und die Medien im Ordner `WhatsApp`
+werden den Nachrichten zugeordnet. Einzelne TSV-Dateien gehen über **+ Import** ebenso.
+
+| Bericht | Messenger | Hinweis |
+| --- | --- | --- |
+| `WhatsApp - Group Messages` | WhatsApp | alte und neue Spaltenfolge |
+| `WhatsApp - One To One Messages` | WhatsApp | |
+| `WhatsApp - Messages` | WhatsApp | altes Datenbankschema (Tabelle `messages`) |
+| `sms messages`, `mms messages` | SMS | beide landen im selben Thread; MMS haben keine Richtung, die eigene Nummer über **Ich:** festlegen |
+| `Google Messages` | Google Messages | eigene Quelle, überschneidet sich inhaltlich mit SMS/MMS |
+
+Erkannt wird an den Spalten, nicht am Dateinamen. ALEAPP schreibt Zeiten in UTC; sie
+werden als UTC gelesen und in Ortszeit angezeigt.
+
+Bekannte Lücke in ALEAPP selbst (Stand September 2026): `WhatsApp - One To One Messages`
+verknüpft Einzelchats über die Telefonnummer mit dem Adressbuch. Neuere WhatsApp-Versionen
+führen Einzelchats unter LID-Kennungen (`…@lid`), solche Nachrichten fehlen dann im
+Bericht vollständig. Gruppen sind nicht betroffen.
+
 ## CSV-Format
 
 Dieselbe Übersicht steckt im Programm hinter dem Button **?** in der Seitenleiste. Dort
 lässt sich auch eine Vorlage als CSV speichern: Kopfzeile plus fünf Beispielzeilen, die
 sich direkt wieder importieren lässt.
 
-Erwartet wird eine Kopfzeile mit diesen Spalten. Das Trennzeichen (`,` `;` Tabulator oder
+Erwartet wird eine Kopfzeile mit Spaltennamen. Das Trennzeichen (`,` `;` Tabulator oder
 `|`) wird automatisch erkannt, ebenso UTF-8 mit und ohne BOM; Anführungszeichen nach
 RFC 4180.
 
-| Spalte | Bedeutung |
-| --- | --- |
-| `nachricht_id` | eindeutige ID der Nachricht, Pflicht |
-| `zeitstempel` | `2026-08-30T18:12:04`, `30.08.2026 18:12` oder Unix-Zeit in Sekunden bzw. Millisekunden |
-| `absender_id` | Name oder ID des Absenders, Pflicht |
-| `unterhaltungs_id` | Chat, zu dem die Nachricht gehört, Pflicht |
-| `nachrichteninhalt` | Text, bei Reaktionen das Emoji |
-| `nachricht_typ` | `text`, `bild`, `video`, `audio`, `datei`, `system`, `standort`, `kontakt`, `umfrage`, `anruf` … |
-| `medienpfad` | Pfad zur Datei |
-| `antwort_auf_id` | ID der zitierten Nachricht |
-| `reaktion_auf_id` | gesetzt: die Zeile ist eine Reaktion auf diese Nachricht |
-| `status` | `gesendet`, `zugestellt`, `gelesen`, `fehlgeschlagen`, `gelöscht` … |
-| `messenger` | `WhatsApp`, `Threema`, `Telegram`, `Signal`, `Instagram`, `SMS` … |
+**Pflicht ist nur eine Spalte:** zu welchem Chat die Zeile gehört, als `unterhaltungs_id`
+oder `chatname`. Alles andere hat einen Ersatz. Für einen Chat wie im Messenger (richtiger
+Chatname, eigene Nachrichten rechts, Uhrzeiten, Anhänge) reichen sechs Spalten:
+
+```
+chatname,absender_id,von_mir,zeitstempel,nachrichteninhalt,medienpfad
+Familie,Mama,0,2026-08-30T18:12:04,Kommst du Sonntag zum Essen?,
+Familie,,1,2026-08-30T18:14:20,"Ja, gerne!",
+Familie,Mama,0,2026-08-30T18:20:11,Der neue Tisch,medien/tisch.jpg
+```
+
+| Spalte | Bedeutung | ohne die Spalte |
+| --- | --- | --- |
+| `unterhaltungs_id` | Chat, zu dem die Nachricht gehört | `chatname` dient als Kennung |
+| `chatname` | Name des Chats in Liste und Kopfzeile | Titel aus den Absendern |
+| `absender_id` | Name oder ID des Absenders | eigene Nachricht: „Ich“, sonst der Chatname |
+| `von_mir` | `1` = eigene Nachricht, steht rechts | „Ich:“ in der Kopfzeile bzw. Vermutung |
+| `zeitstempel` | `2026-08-30T18:12:04`, `30.08.2026 18:12`, Unix-Zeit in Sekunden (10 Stellen) bzw. Millisekunden (13 Stellen) oder Apple-Zeit (9 Stellen, Sekunden seit 1.1.2001, wie in iPhone-Datenbanken); Nachkommastellen erlaubt | Reihenfolge der Datei, keine Uhrzeit |
+| `nachrichteninhalt` | Text, bei Medien die Beschriftung, bei Reaktionen das Emoji | nur Medien |
+| `medienpfad` | Pfad zur Datei | keine Anhänge |
+| `nachricht_typ` | `text`, `bild`, `video`, `gif`, `audio`, `datei`, `system`, `standort`, `kontakt`, `umfrage`, `anruf` … | aus der Dateiendung, sonst Text |
+| `nachricht_id` | eindeutige ID der Nachricht | aus dem Inhalt gebildet |
+| `antwort_auf_id` | ID der zitierten Nachricht (braucht `nachricht_id`) | keine Zitate |
+| `reaktion_auf_id` | gesetzt: die Zeile ist eine Reaktion auf diese Nachricht | keine Reaktionen |
+| `status` | `gesendet`, `zugestellt`, `gelesen`, `fehlgeschlagen`, `gelöscht` … | keine Häkchen |
+| `messenger` | `WhatsApp`, `Threema`, `Telegram`, `Signal`, `Instagram`, `SMS` … | Dateiname |
 
 Englische Spaltennamen (`message_id`, `timestamp`, `sender_id`, `conversation_id`,
-`content`, `message_type`, `media_path`, `reply_to_id`, `reaction_to_id`, `platform`)
-werden ebenfalls erkannt. Fehlt die Spalte `messenger`, dient der Dateiname als
-Messengername. Unbekannte Messenger bekommen ein Logo mit Anfangsbuchstaben und eigener
-Farbe.
+`chat_name`, `from_me`, `content`, `message_type`, `media_path`, `reply_to_id`,
+`reaction_to_id`, `platform`) werden ebenfalls erkannt. `von_mir` versteht `1`, `true`, `ja`
+und `x`. Fehlt die Spalte `messenger`, dient der Dateiname als Messengername; eine Datei
+`whatsapp.csv` wird also WhatsApp zugeordnet. Unbekannte Messenger bekommen ein Logo mit
+Anfangsbuchstaben und eigener Farbe.
 
 ### Mehrfachimport
 
-Nachrichten werden über `messenger + nachricht_id` eindeutig gehalten. Dieselbe Datei
-zweimal zu importieren erzeugt deshalb keine Duplikate, sondern aktualisiert die
-vorhandenen Nachrichten.
+Nachrichten werden über `messenger + nachricht_id` eindeutig gehalten, ohne ID-Spalte über
+Chat, Zeitpunkt, Absender und Inhalt. Dieselbe Datei zweimal zu importieren erzeugt deshalb
+keine Duplikate, sondern aktualisiert die vorhandenen Nachrichten.
 
 ## Übersetzung
 
@@ -216,14 +298,21 @@ Zusätzlich zu den CSV-Dateien lässt sich der Ordner mit den Anhängen verbinde
 Button **🖼** in der Seitenleiste oder indem der Ordner ins Fenster gezogen wird. Danach
 zeigt der Chat die Dateien an:
 
-- Bilder als Vorschau, ein Klick öffnet die Großansicht (`←` `→` blättert durch alle
+- Bilder erscheinen direkt als Vorschau, ein Klick öffnet die Großansicht (`←` `→` blättert durch alle
   Bilder und Videos der Unterhaltung, `Esc` schließt)
-- Videos als Player mit Steuerung in der Sprechblase
+- GIFs laufen automatisch in Endlosschleife, ohne Play-Knopf. Das gilt auch für als
+  Video exportierte WhatsApp-GIFs mit `GIF` im Dateinamen (etwa `00001234-GIF-….mp4`)
+  oder dem CSV-Nachrichtentyp `gif`. Diese Videos laufen stumm, auch in der Großansicht.
+- Normale Videos als Player mit Steuerung in der Sprechblase
 - Sprachnachrichten und Audio als abspielbarer Player
 - PDF und andere Dateien als Kachel, die die Datei öffnet
 - in der Detailspalte echte Vorschaubilder in der Mediengalerie
 
 Nicht gefundene Dateien bleiben als Kachel mit Pfad sichtbar, ein Klick kopiert den Pfad.
+Kann der Browser einen vorhandenen Anhang nicht darstellen oder seinen Codec nicht
+abspielen, erscheint eine Meldung mit einem Link zum Speichern der Originaldatei.
+Die lokalen Windows- und Python-Server unterstützen Teilabrufe zum Laden und Spulen.
+Nach einer Aktualisierung der Startskripte den Server neu starten.
 
 ### Dokumente: Vorschau und Suche
 

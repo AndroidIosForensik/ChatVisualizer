@@ -14,6 +14,7 @@
 
   /* Aktueller Inhalt: Galerieliste mit Position, oder ein PDF mit Seitenstand */
   const stand = { liste: [], i: 0, pdf: null };
+  let galerieVersion = 0;
 
   function oeffneRahmen() { $('#lightbox').classList.add('show'); }
 
@@ -22,8 +23,8 @@
   /** Alle anzeigbaren Bilder und Videos einer Unterhaltung. */
   function galerie(conv) {
     return conv.media.filter(m => {
-      const art = Media.kindOf(m.type, m.media);
-      return (art === 'bild' || art === 'video') &&
+      const art = Medienansicht.artVon(m);
+      return (art === 'bild' || art === 'animation' || art === 'video') &&
              (Media.lookup(m.media) || Medienansicht.direkteURL(m.media));
     });
   }
@@ -32,14 +33,16 @@
   async function zeigeGalerie() {
     const m = stand.liste[stand.i];
     if (!m) return;
+    const version = ++galerieVersion;
 
-    const art = Media.kindOf(m.type, m.media);
-    const url = (await Media.getURL(m.media)) || Medienansicht.direkteURL(m.media);
+    const art = Medienansicht.artVon(m);
+    const url = await Media.getDisplayURL(m.media);
+    if (version !== galerieVersion) return;
     const name = Helfer.dateiname(m.media);
 
-    $('#lbStage').innerHTML = art === 'video'
-      ? '<video src="' + esc(url) + '" controls autoplay playsinline></video>'
-      : '<img src="' + esc(url) + '" alt="' + esc(name) + '">';
+    $('#lbStage').innerHTML = url ? Medienansicht.visualHTML(art, m.media, url, name)
+      : '<p class="lb-laden">Datei nicht gefunden – Medienordner verbinden.</p>';
+    Medienansicht.startAnimation($('#lbStage'));
 
     $('#lbCaption').innerHTML = '<b>' + esc(name) + '</b> · ' + esc(m.sender) +
       (m.ts ? ' · ' + esc(M.DT_FULL.format(new Date(m.ts))) : '') +
@@ -85,6 +88,7 @@
 
   /** Ein PDF in der Großansicht öffnen. */
   async function pdfOeffnen(pfad) {
+    galerieVersion++;
     stand.pdf = { pfad: pfad, seite: 1, seiten: 0 };
     stand.liste = [];
     oeffneRahmen();
@@ -96,6 +100,7 @@
 
   /** Den ausgelesenen Text eines Dokuments im Großformat lesen. */
   async function textOeffnen(pfad) {
+    galerieVersion++;
     stand.pdf = null;
     stand.liste = [];
     oeffneRahmen();
@@ -120,6 +125,7 @@
   /* ---- Steuerung ------------------------------------------------------ */
 
   function schliessen() {
+    galerieVersion++;
     $('#lightbox').classList.remove('show');
     $('#lbStage').innerHTML = '';     // Video anhalten, Speicher freigeben
     stand.pdf = null;

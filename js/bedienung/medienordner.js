@@ -65,14 +65,15 @@
     Meldung.zeige(text, zahlen.withMedia && !zahlen.matched ? 'warn' : 'ok');
 
     if (csvImportieren) {
-      const csvDateien = Media.listByExt(['csv', 'tsv']);
+      const csvDateien = Media.listByExt(['csv', 'tsv', 'txt']);
       if (csvDateien.length) {
         const dateien = [];
+        const paths = new Map();
         for (const e of csvDateien) {
           const f = await Media.getFile(e);
-          if (f) dateien.push(f);
+          if (f) { dateien.push(f); paths.set(f, e.originalPath || e.path); }
         }
-        if (dateien.length) await Import.importiereDateien(dateien);
+        if (dateien.length) await Import.importiereDateien(dateien, { paths, fromFolder: true });
         ansichtenAuffrischen();
       }
     }
@@ -162,7 +163,7 @@
     $('#mediaBtnWelcome').addEventListener('click', ordnerWaehlen);
 
     $('#dirInput').addEventListener('change', async e => {
-      const files = e.target.files;
+      const files = Array.from(e.target.files);
       e.target.value = '';
       if (!files || !files.length) return;
       $('#importBusy').classList.add('show');

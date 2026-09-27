@@ -18,14 +18,15 @@
 
   /* Symbole nach Nachrichtentyp bzw. nach erkannter Dateiart */
   const TYP_SYMBOL = {
-    bild: '🖼️', video: '🎬', audio: '🎤', datei: '📎',
+    bild: '🖼️', gif: '🖼️', video: '🎬', audio: '🎤', datei: '📎',
     standort: '📍', kontakt: '👤', umfrage: '📊', anruf: '📞'
   };
-  const ART_SYMBOL = { bild: '🖼️', video: '🎬', audio: '🎤', datei: '📎', pdf: '📄', doc: '📝' };
+  const ART_SYMBOL = { bild: '🖼️', animation: '🖼️', video: '🎬', audio: '🎤', datei: '📎', pdf: '📄', doc: '📝' };
 
   /** Dateiart einer Nachricht: Medienart oder – bei Dokumenten – 'pdf'/'doc'. */
   function artVon(m) {
     let art = Media.kindOf(m.type, m.media);
+    if (Media.isAnimation(m.type, m.media)) art = 'animation';
     if (window.Documents && Documents.isDocument(m.media)) {
       art = Documents.isPdf(m.media) ? 'pdf' : 'doc';
     }
@@ -54,10 +55,32 @@
   const direkteURL = Helfer.direkteURL;
 
   /** Zurück zur Platzhalter-Kachel, wenn das Laden scheitert. */
-  function zurueckZurKachel(el) {
+  function zurueckZurKachel(el, url, reason) {
     const pfad = el.dataset.media;
     el.className = 'media media-chip unresolved';
-    el.innerHTML = kachelInhalt(el.dataset.kind, esc(Helfer.dateiname(pfad)), esc(pfad), null);
+    el.innerHTML = kachelInhalt(el.dataset.kind, esc(Helfer.dateiname(pfad)), esc(pfad), null) +
+      '<span class="media-error">' + esc(reason || 'Datei nicht gefunden – Medienordner verbinden oder Datei erneut ablegen.') +
+      (url ? ' <a href="' + esc(url) + '" download="' + esc(Helfer.dateiname(pfad)) + '">Datei speichern</a>' : '') + '</span>';
+  }
+
+  /** Gemeinsame Darstellung in Chat, Galerie und Großansicht. */
+  function visualHTML(art, pfad, url, name) {
+    const video = art === 'video' || (art === 'animation' && Media.kindOf('', pfad) === 'video');
+    if (!video) return '<img src="' + esc(url) + '" alt="' + esc(name || '') + '" loading="eager" decoding="async">';
+    const attrs = art === 'animation'
+      ? ' autoplay loop muted playsinline preload="auto" aria-label="GIF: ' + esc(name || 'Animation') + '"'
+      : ' controls playsinline preload="metadata"';
+    return '<video src="' + esc(url) + '"' + attrs + '></video>';
+  }
+
+  function startAnimation(root) {
+    const video = root.querySelector('video[autoplay][loop]');
+    if (!video) return;
+    video.muted = true;
+    video.defaultMuted = true;
+    const start = () => { const p = video.play(); if (p) p.catch(() => {}); };
+    video.addEventListener('loadeddata', start, { once: true });
+    start();
   }
 
   /* ---- PDF ----------------------------------------------------------- */
@@ -160,26 +183,23 @@
     if (art === 'doc' && window.Documents) { await belebeDok(el, pfad); return; }
 
     // Erst im verbundenen Medienordner suchen, sonst den Pfad direkt versuchen
-    let url = await Media.getURL(pfad);
-    const ausOrdner = !!url;
-    if (!url) url = direkteURL(pfad);
-    if (!url) { el.classList.add('unresolved'); return; }
+    const ausOrdner = !!Media.lookup(pfad);
+    const url = await Media.getDisplayURL(pfad);
+    if (!el.isConnected) return;
+    if (!url) { zurueckZurKachel(el); return; }
 
     const sicher = esc(url);
-    if (art === 'bild') {
-      el.className = 'media media-img';
-      el.innerHTML = '<img src="' + sicher + '" alt="' + name + '" loading="lazy">';
-      el.querySelector('img').addEventListener('error', () => zurueckZurKachel(el));
-    } else if (art === 'video') {
-      el.className = 'media media-video';
-      el.innerHTML = '<video src="' + sicher + '" controls preload="metadata"></video>' +
-        '<span class="mf-name small">' + name + '</span>';
-      el.querySelector('video').addEventListener('error', () => zurueckZurKachel(el));
+    if (art === 'bild' || art === 'animation' || art === 'video') {
+      el.className = 'media ' + (art === 'video' ? 'media-video' : 'media-img');
+      el.innerHTML = visualHTML(art, pfad, url, Helfer.dateiname(pfad)) +
+        (art === 'video' ? '<span class="mf-name small">' + name + '</span>' : '');
+      el.firstElementChild.addEventListener('error', () => zurueckZurKachel(el, url, 'Der Browser konnte diese Datei nicht anzeigen.'));
+      startAnimation(el);
     } else if (art === 'audio') {
       el.className = 'media media-audio';
       el.innerHTML = '<span class="mf-name small">🎤 ' + name + '</span>' +
         '<audio src="' + sicher + '" controls preload="metadata"></audio>';
-      el.querySelector('audio').addEventListener('error', () => zurueckZurKachel(el));
+      el.querySelector('audio').addEventListener('error', () => zurueckZurKachel(el, url, 'Der Browser konnte diese Audiodatei nicht abspielen.'));
     } else {
       el.className = 'media media-chip file-open';
       el.innerHTML = '<a href="' + sicher + '" target="_blank" rel="noopener noreferrer"' +
@@ -241,18 +261,18 @@
       if (bild) el.innerHTML = '<img src="' + esc(bild) + '" alt="">';
       return;
     }
-    if (art !== 'bild' && art !== 'video') return;
+    if (art !== 'bild' && art !== 'animation' && art !== 'video') return;
 
-    let url = await Media.getURL(pfad);
-    if (!url) url = direkteURL(pfad);
+    const url = await Media.getDisplayURL(pfad);
+    if (!el.isConnected) return;
     if (!url) return;
 
     // Erst einsetzen, dann prüfen: bei einem Fehler kommt das Symbol zurück
     const ersatz = el.innerHTML;
-    el.innerHTML = art === 'bild'
-      ? '<img src="' + esc(url) + '" alt="" loading="lazy">'
-      : '<video src="' + esc(url) + '" preload="metadata" muted></video>';
+    el.innerHTML = art === 'video' ? '<video src="' + esc(url) + '" preload="metadata" muted playsinline></video>'
+      : visualHTML(art, pfad, url, '');
     el.firstChild.addEventListener('error', () => { el.innerHTML = ersatz; });
+    startAnimation(el);
   }
 
   /** Alle Vorschaukacheln unterhalb von `wurzel` füllen. */
@@ -264,6 +284,7 @@
     TYP_SYMBOL: TYP_SYMBOL, ART_SYMBOL: ART_SYMBOL,
     artVon: artVon, medienHTML: medienHTML, direkteURL: direkteURL,
     belebe: belebe, belebeAlle: belebeAlle, belebeVorschauen: belebeVorschauen,
-    belebePdf: belebePdf, belebeDok: belebeDok
+    belebePdf: belebePdf, belebeDok: belebeDok,
+    visualHTML: visualHTML, startAnimation: startAnimation
   };
 })(window);

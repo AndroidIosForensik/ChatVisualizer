@@ -61,6 +61,8 @@ gebildeten Unterhaltungen, der offene Chat, Suchbegriffe, Treffer.
 |---|---|---|
 | `messengers.js` | `Messengers` | Logos und Farben der Messenger |
 | `media.js` | `Media` | Medienordner einlesen, Pfade zuordnen, Dateien liefern |
+| `whatsapp.js` | `WhatsApp` | Android-/iPhone-Textexporte erkennen, Datum und Anhänge lesen, stabile Nachrichten-IDs erzeugen |
+| `aleapp.js` | `Aleapp` | ALEAPP-Berichte (TSV) am Spaltenkopf erkennen und ins eigene Spaltenformat übersetzen, UTC-Zeiten kennzeichnen |
 | `archive.js` | `Archive` | ZIP lesen (für docx/xlsx/pptx/odf) – ganz ohne Bibliothek |
 | `documents.js` | `Documents` | Dokumente: Vorschau, Textauszug, Hintergrundlauf |
 | `translate.js` | `Translate` | Übersetzung über die Browser-Schnittstelle |
@@ -93,6 +95,7 @@ weder den Zustand noch stößt sie Läufe an.
 | `fortschritt.js` | `Fortschritt` | Leiste über dem Chat und Balken in den Panels |
 | `hilfe.js` | `Hilfe` | Erklärfenster zum CSV-Format, Vorlage speichern |
 | `import.js` | `Import` | CSV einlesen, Ablegen per Maus, Export, Demodaten |
+| `whatsapp-import.js` | `WhatsAppImport` | Chatname/Datumsformat abfragen, ZIP-Exporte lesen und Anhänge bei Bedarf entpacken |
 | `medienordner.js` | `Medienordner` | Ordner verbinden, merken, trennen |
 | `uebersetzen.js` | `Uebersetzen` | 🌐 Knopf, Panel, Chatlauf, Einzelnachricht |
 | `sprachnachrichten.js` | `Sprachnachrichten` | 🎤 Knopf, Panel, Chatlauf, Einzelnachricht |
@@ -134,10 +137,27 @@ deshalb steht `helfer.js` ganz vorn und `app.js` ganz hinten.
 ## Abläufe im Überblick
 
 **Import**
-`Import.importiereDateien` → `CSV.toObjects` → `Model.buildMapping` →
+`Import.importiereDateien` → `CSV.toObjects` → `Aleapp.umsetzen` (nur bei ALEAPP-Berichten) → `Model.buildMapping` →
 `Model.rowToMessage` je Zeile → zusammenführen über `Messenger::nachricht_id`
 → `Model.rebuild` → `Import.speichere` (ein IndexedDB-Eintrag je
 Unterhaltung) → `Render.renderAll` → `Dokumentenlauf.alleLesen`.
+
+**WhatsApp-Import**
+`Import.importiereDateien` verarbeitet TXT, ZIP und lose Anhänge; parallele Importe
+werden nacheinander abgearbeitet. `WhatsApp.inspect` erkennt Textexporte,
+`WhatsAppImport.configure` zeigt Chatname und Datumsformat, `WhatsApp.parse` liefert
+das bestehende Nachrichtenformat. ZIPs werden durch `WhatsAppImport.unzip` geöffnet:
+Chattexte sofort, Anhänge über `Media.attachSources` erst bei Bedarf. Ordnerimporte
+geben Originalpfade weiter, damit gleichnamige Anhänge verschiedenen Chats zugeordnet
+bleiben. Wiederholungsimporte setzen denselben vom Nutzer vergebenen Chatnamen voraus.
+
+**Tests**
+`node --test tests/whatsapp.test.cjs tests/media.test.cjs` prüft Parser, Datumsvarianten,
+Anhänge, ZIPs, Wiederholungsimporte, GIF-Schleifen, Medienpfade, Ladevorgänge und die
+bestehenden CSV-Beispiele ohne zusätzliche Pakete. `python -B -m unittest discover
+-s tests -p test_serve.py` prüft die HTTP-Teilabrufe des Python-Servers. Die Datei
+`tests/fixtures/medien-test.csv` dient zur Browserprüfung; die kleinen GIF-/PNG-Dateien
+daneben sind synthetische Testbilder.
 
 **Medien**
 `Medienordner.ordnerWaehlen` → `Media.attachDirectoryHandle` (merkt sich den
