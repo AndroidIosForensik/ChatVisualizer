@@ -12,8 +12,10 @@ Wo was liegt und warum, als Einstieg für spätere Änderungen.
    benutzt.
 2. **Alles bleibt auf dem Rechner.** Keine Datei wird hochgeladen, kein
    Dienst angefragt. Übersetzung und Spracherkennung laufen im Browser bzw.
-   aus dem Modellordner. Einzige Netzverbindung ist das einmalige Laden des
-   Spracherkennungsmodells beim ersten Start.
+   aus dem Modellordner. Netzverbindungen gibt es nur zwei: das einmalige
+   Laden des Spracherkennungsmodells beim ersten Start und – nur nach
+   Freigabe per Klick – Medien, deren Pfad ein http(s)-Link ist
+   (`Media.externErlaubt`). Eine lokale Kopie im Medienordner geht immer vor.
 3. **Eine Aufgabe je Datei.** Wird eine Datei größer als ein paar hundert
    Zeilen, wird sie geteilt, so geschehen mit `app.js` und `render.js`.
 

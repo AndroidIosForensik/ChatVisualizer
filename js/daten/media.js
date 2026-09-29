@@ -25,7 +25,11 @@
   };
 
   function extOf(path) {
-    const m = String(path || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+    let p = String(path || '').toLowerCase();
+    // Bei Internet-Links zählen ?Parameter und #Anker nicht zur Endung –
+    // bei lokalen Dateien schon (dort dürfen # und ? im Namen stehen)
+    if (/^https?:\/\//.test(p)) p = p.replace(/[?#].*$/, '');
+    const m = p.match(/\.([a-z0-9]+)$/);
     return m ? m[1] : '';
   }
 
@@ -140,8 +144,25 @@
     return urlCache.get(entry.path) === pending ? url : null;
   }
 
+  /* ---- Medien aus dem Internet ----------------------------------------
+     Steht im Medienpfad ein http(s)-Link (GIF-Dienste, geteilte Bilder),
+     wird die Datei nur mit Freigabe geladen: der fremde Server erfährt dabei
+     die IP-Adresse dieses Rechners. Freigabe einzeln oder dauerhaft. */
+  const einzelnFrei = new Set();
+
+  function externErlaubt(path) {
+    return Store.settings.get('externeMedien', false) === true || einzelnFrei.has(path);
+  }
+  function erlaubeExtern(path) { einzelnFrei.add(path); }
+  function setzeExternImmer(ja) { Store.settings.set('externeMedien', !!ja); }
+
+  /** Ist der Pfad ein Internet-Link ohne lokale Kopie im Medienordner? */
+  function istExtern(path) { return !!Helfer.externeURL(path) && !lookup(path); }
+
   async function getDisplayURL(path) {
-    if (lookup(path)) return getURL(path);
+    if (lookup(path)) return getURL(path);         // lokale Kopie geht immer vor
+    const extern = Helfer.externeURL(path);
+    if (extern) return externErlaubt(path) ? extern : null;
     const url = Helfer.direkteURL(path);
     if (!url || extOf(path) !== 'gif') return url;
     const key = '@direct:' + url;
@@ -309,6 +330,7 @@
   global.Media = {
     kindOf: kindOf, extOf: extOf, mimeType: mimeType, isAnimation: isAnimation, loopingGif: loopingGif,
     lookup: lookup, getURL: getURL, getDisplayURL: getDisplayURL, getFile: getFile,
+    istExtern: istExtern, externErlaubt: externErlaubt, erlaubeExtern: erlaubeExtern, setzeExternImmer: setzeExternImmer,
     attachFileList: attachFileList, attachSources: attachSources,
     attachDirectoryHandle: attachDirectoryHandle, attachDropEntry: attachDropEntry,
     clear: clear, stats: stats, listByExt: listByExt,

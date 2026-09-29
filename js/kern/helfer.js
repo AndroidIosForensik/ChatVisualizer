@@ -87,6 +87,12 @@
     return p ? p.split('/').map(encodeURIComponent).join('/') : null;
   }
 
+  /** Medienpfad, der ins Internet zeigt (http/https), sonst null. */
+  function externeURL(pfad) {
+    const p = String(pfad || '').trim();
+    return /^https?:\/\/[^\s]+$/i.test(p) ? p : null;
+  }
+
   /** Bytes lesbar machen: 1.234.567 → „1,2 MB". */
   function mengeMB(bytes) { return (bytes / 1048576).toFixed(bytes < 10485760 ? 1 : 0); }
 
@@ -94,6 +100,6 @@
     $: $, $$: $$, esc: esc, cssAttr: cssAttr, dateiname: dateiname,
     debounce: debounce, withTimeout: withTimeout,
     download: download, leseTextdatei: leseTextdatei, mengeMB: mengeMB,
-    direkteURL: direkteURL
+    direkteURL: direkteURL, externeURL: externeURL
   };
 })(window);

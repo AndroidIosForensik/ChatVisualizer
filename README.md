@@ -445,6 +445,27 @@ abspielen, erscheint eine Meldung mit einem Link zum Speichern der Originaldatei
 Die lokalen Windows- und Python-Server unterstützen Teilabrufe zum Laden und Spulen.
 Nach einer Aktualisierung der Startskripte den Server neu starten.
 
+### Medien aus dem Internet (GIF-Links)
+
+Steht im Medienpfad ein `http(s)`-Link, etwa bei GIFs von Klipy, Tenor oder Giphy,
+bettet der Chat Bild, GIF, Video oder Ton direkt ein und zeigt den Link darunter. Steht
+der Link schon im Nachrichtentext, erscheint er nicht doppelt. Ein Link darf `?Parameter`
+haben, die Dateiart ergibt sich trotzdem aus der Endung.
+
+Geladen wird erst nach einer **Freigabe per Klick**, denn der fremde Server sieht dabei die
+IP-Adresse des Auswerterechners. Bei einer Ermittlung kann das auffallen. Die Kachel
+bietet dazu zwei Knöpfe:
+
+- **Laden** gibt nur diese Datei frei.
+- **Externe Medien immer laden** gibt alle frei. Zurücknehmen lässt sich das im
+  Hilfefenster (**?**).
+
+Liegt dieselbe Datei im verbundenen Medienordner, wird die lokale Kopie gezeigt, ganz
+ohne Netz.
+
+Im PDF-Bericht werden freigegebene Internet-Bilder mit eingebettet, der vollständige
+Link steht darunter.
+
 ### Dokumente: Vorschau und Suche
 
 Angehängte Dokumente werden gelesen, damit die Suche ihren Inhalt findet und nicht nur

@@ -63,10 +63,13 @@
   /* ---- Bilder: verkleinert als data:-URL einbetten ----------------------- */
 
   async function bildDaten(pfad) {
+    const extern = Media.istExtern(pfad);
+    let url = null;
     try {
-      const url = await Media.getDisplayURL(pfad);
+      url = await Media.getDisplayURL(pfad);
       if (!url) return null;
       const img = new Image();
+      if (extern) img.crossOrigin = 'anonymous';    // sonst ließe sich das Bild nicht verkleinern
       img.src = url;
       await Helfer.withTimeout(img.decode(), 15000, 'Bild laden');
       const f = Math.min(1, BILD_KANTE / Math.max(img.naturalWidth, img.naturalHeight));
@@ -79,6 +82,8 @@
       g.drawImage(img, 0, 0, w, h);
       return canvas.toDataURL('image/jpeg', 0.86);
     } catch (e) {
+      // Internet-Bild ohne CORS-Freigabe: dann lädt der Druck es selbst
+      if (extern && url) return url;
       return null;                                    // z. B. HEIC, das der Browser nicht lesen kann
     }
   }
@@ -175,7 +180,9 @@
       const name = esc(Helfer.dateiname(m.media));
       const bild = k.bilder.get(m.key);
       if (bild) {
-        html += '<figure><img src="' + bild + '" alt=""><figcaption>' + name + '</figcaption></figure>';
+        // Bei Internet-Bildern steht der vollständige Link darunter (Herkunft)
+        html += '<figure><img src="' + esc(bild) + '" alt=""><figcaption>' +
+          (Helfer.externeURL(m.media) ? esc(m.media) : name) + '</figcaption></figure>';
       } else {
         html += '<div class="anhang">' + (TYP_SYMBOL[m.type] || '📎') + ' ' + name +
           '<span class="pfad">' + esc(m.media) + '</span></div>';
@@ -399,7 +406,8 @@
     const opt = leseOptionen();
     const liste = auswahl(conv, opt);
     const bilder = liste.filter(istBild).length;
-    const verbunden = liste.some(m => istBild(m) && Media.lookup(m.media));
+    const verbunden = liste.some(m => istBild(m) &&
+      (Media.lookup(m.media) || (Media.istExtern(m.media) && Media.externErlaubt(m.media))));
     $('#pdfInfo').textContent = liste.length.toLocaleString('de-DE') + ' Nachrichten' +
       (bilder ? ', ' + bilder + (bilder === 1 ? ' Bild' : ' Bilder') + (verbunden ? '' : ' (Medienordner nicht verbunden – nur Dateinamen)') : '') +
       ' · Zeiten in ' + M.zonenName() + (liste.length > 3000 ? ' · großer Bericht, das Erstellen dauert etwas' : '');

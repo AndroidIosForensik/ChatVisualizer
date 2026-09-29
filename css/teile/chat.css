@@ -287,6 +287,17 @@
 .media-chip.unresolved { opacity: .82; }
 .media-chip.unresolved { flex-wrap: wrap; }
 .media-error { flex-basis: 100%; font-size: 12px; color: var(--text-2); }
+
+/* Dateien aus dem Internet: Freigabe und Link unter dem eingebetteten Bild */
+.media-chip.extern-frage { cursor: default; flex-wrap: wrap; }
+.extern-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.extern-knoepfe .btn { padding: 4px 10px; font-size: 12px; border-radius: 8px; }
+.extern-link {
+  display: block; margin-top: 4px; font-size: 11.5px;
+  overflow-wrap: anywhere; opacity: .85;
+}
+.msg.out .extern-link { color: #cfe2ff; }
+[data-theme="light"] .msg.out .extern-link { color: var(--accent); }
 .mf-body { min-width: 0; display: flex; flex-direction: column; }
 .mf-name { font-weight: 600; word-break: break-all; }
 .mf-path { font-size: 11px; opacity: .6; word-break: break-all; }

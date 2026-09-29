@@ -102,6 +102,22 @@
       const bild = e.target.closest('.media-img[data-media]');
       if (bild) { Lightbox.oeffnen(bild.dataset.key); return; }
 
+      // Datei aus dem Internet: einzeln oder dauerhaft freigeben
+      const laden = e.target.closest('[data-extern-laden]');
+      if (laden) {
+        const kachel = laden.closest('.media[data-media]');
+        Media.erlaubeExtern(kachel.dataset.media);
+        Medienansicht.freigeben([kachel]);
+        return;
+      }
+      if (e.target.closest('[data-extern-immer]')) {
+        Media.setzeExternImmer(true);
+        Medienansicht.freigeben(Helfer.$$('#chatMessages .media.extern-frage'));
+        Render.renderDetails();
+        Meldung.zeige('Externe Medien werden ab jetzt geladen. Abschalten im Hilfefenster (?).');
+        return;
+      }
+
       // Kachel ohne Vorschau: wenigstens den Pfad in die Zwischenablage legen
       const kachel = e.target.closest('.media-chip[data-media]');
       if (kachel && !e.target.closest('a') && navigator.clipboard) {
