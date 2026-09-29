@@ -44,7 +44,7 @@
       : '<p class="lb-laden">Datei nicht gefunden – Medienordner verbinden.</p>';
     Medienansicht.startAnimation($('#lbStage'));
 
-    $('#lbCaption').innerHTML = '<b>' + esc(name) + '</b> · ' + esc(m.sender) +
+    $('#lbCaption').innerHTML = '<b>' + esc(name) + '</b> · ' + esc(M.absenderName(m)) +
       (m.ts ? ' · ' + esc(M.DT_FULL.format(new Date(m.ts))) : '') +
       '<span class="lb-count">' + (stand.i + 1) + ' / ' + stand.liste.length + '</span>';
 

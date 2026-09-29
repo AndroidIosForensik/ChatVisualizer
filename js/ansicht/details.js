@@ -47,10 +47,11 @@
     /* Teilnehmer mit Balken nach Nachrichtenzahl */
     html += '<div class="d-block"><h4>Teilnehmer</h4>';
     for (const [s, n] of absender) {
-      html += '<div class="d-person">' +
-        '<span class="msg-avatar" style="--ac:' + M.senderColor(s) + '">' + esc(M.initials(s)) + '</span>' +
+      const name = M.nameVon(conv, s);
+      html += '<div class="d-person" title="' + esc(name !== s ? name + ' (' + s + ')' : s) + '">' +
+        '<span class="msg-avatar" style="--ac:' + M.senderColor(s) + '">' + esc(M.initials(name)) + '</span>' +
         '<span class="d-person-main">' +
-          '<span class="d-person-name">' + esc(s) +
+          '<span class="d-person-name">' + esc(name) +
             (s === M.whoAmI(conv.key) ? ' <em>(du)</em>' : '') + '</span>' +
           '<span class="d-bar"><i style="width:' + Math.round(n / meiste * 100) +
             '%;background:' + M.senderColor(s) + '"></i></span>' +

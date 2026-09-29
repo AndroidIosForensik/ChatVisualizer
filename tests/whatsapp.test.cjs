@@ -10,6 +10,7 @@ function environment() {
   const elements = new Map();
   const messages = [];
   const stored = new Map();
+  const settings = new Map();
   const element = key => {
     if (!elements.has(key)) elements.set(key, { classList: { add() {}, remove() {}, toggle() {} } });
     return elements.get(key);
@@ -17,7 +18,8 @@ function environment() {
   const ctx = vm.createContext({ console, URL, Blob, File, TextDecoder, Response, DecompressionStream,
     setTimeout, clearTimeout,
     document: { querySelector: element, querySelectorAll: () => [] },
-    Store: { settings: { get: (_, fallback) => fallback, set() {} },
+    Store: { settings: { get: (key, fallback) => settings.has(key) ? JSON.parse(settings.get(key)) : fallback,
+      set: (key, value) => settings.set(key, JSON.stringify(value)) },
       putConversations: async rows => { for (const row of rows) stored.set(row.convKey, row); return true; } },
     Render: { renderAll() {} }, Meldung: { zeige: text => messages.push(text) },
     App: { oeffneChat() {} }, Dokumentenlauf: { alleLesen() {} },
@@ -25,14 +27,24 @@ function environment() {
   });
   ctx.window = ctx;
   for (const file of ['kern/helfer', 'kern/csv', 'kern/model', 'daten/messengers', 'daten/media',
-    'daten/archive', 'daten/whatsapp', 'daten/aleapp', 'bedienung/whatsapp-import', 'bedienung/import']) {
+    'daten/archive', 'daten/whatsapp', 'daten/aleapp', 'daten/ileapp', 'daten/geraete-db',
+    'bedienung/whatsapp-import', 'bedienung/spaltenzuordnung', 'bedienung/import']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', file + '.js'), 'utf8'), ctx);
   }
   ctx.Helfer.leseTextdatei = file => file.text();
   ctx.WhatsAppImport.configure = async (info, source, suggested) => ({
     name: suggested || ctx.WhatsApp.chatName(source), dateOrder: info.dateOrder
   });
-  return { ctx, messages, stored };
+  // Zuordnungsdialog: Tests legen die Antwort fest; ohne Vorgabe wird übersprungen
+  const dialoge = [];
+  ctx.Spaltenzuordnung.antwort = null;
+  ctx.Spaltenzuordnung.fragen = async a => {
+    dialoge.push(a);
+    const wahl = ctx.Spaltenzuordnung.antwort && ctx.Spaltenzuordnung.antwort(a);
+    if (wahl) ctx.Spaltenzuordnung.merken(a.header, wahl);
+    return wahl;
+  };
+  return { ctx, messages, stored, dialoge };
 }
 
 function parse(text, options = {}) {
@@ -386,4 +398,366 @@ test('ALEAPP: Zeiten mit und ohne Zonenangabe, andere Formate bleiben unverände
   assert.equal(u(''), '');
   assert.equal(u('04.09.2026 14:41'), '04.09.2026 14:41');
   assert.equal(ctx.Model.parseTimestamp(u('2026-09-04 14:41:25+00:00')), Date.UTC(2026, 8, 4, 14, 41, 25));
+});
+
+/* ---- Spaltenerkennung, Zeitzonen, Zuordnungsdialog --------------------- */
+
+test('Spaltennamen mit Leerzeichen/Großschrift, getrenntes Datum und Uhrzeit, Name, gelöscht, Quelle', async () => {
+  const { ctx, dialoge } = environment();
+  await ctx.Import.importiereDateien([new File([
+    'Chat ID;Datum;Uhrzeit;Absender ID;Absender Name;Nachricht;Gelöscht;Quelle\n' +
+    '5;30.08.2026;18:12:04;+491701;Anna;Hallo;0;msgstore.db _id 1\n' +
+    '5;30.08.2026;18:13;+491701;Anna;wieder da;ja;msgstore.db _id 2\n'], 'abfrage.csv')]);
+  assert.equal(dialoge.length, 0);                 // alles erkannt: keine Rückfrage
+  const { state } = ctx.Model;
+  const c = state.conversations[0];
+  assert.equal(c.title, 'Anna');                    // Name statt Nummer
+  const [a, b] = c.messages;
+  assert.equal(a.ts, new Date(2026, 7, 30, 18, 12, 4).getTime());
+  assert.equal(a.tsRaw, '30.08.2026 18:12:04');
+  assert.equal(a.sender, '+491701');
+  assert.equal(a.senderName, 'Anna');
+  assert.equal(a.source, 'msgstore.db _id 1');
+  assert.equal(a.deleted, undefined);
+  assert.equal(b.deleted, true);
+  assert.equal(b.text, 'wieder da');                // Inhalt bleibt erhalten
+  assert.equal(ctx.Model.absenderName(a), 'Anna');
+});
+
+test('Zeitzonen: Voreinstellung, Zone im Wert, Zone je Zeile, Zahlen bleiben unberührt', () => {
+  const { ctx } = environment();
+  const p = ctx.Model.parseTimestamp;
+  assert.equal(p('2026-01-15 12:00:00', 'UTC'), Date.UTC(2026, 0, 15, 12));
+  assert.equal(p('2026-01-15 12:00', 'Europe/Berlin'), Date.UTC(2026, 0, 15, 11));
+  assert.equal(p('2026-07-15 12:00', 'Europe/Berlin'), Date.UTC(2026, 6, 15, 10));   // Sommerzeit
+  assert.equal(p('15.01.2026 12:00', '+03:00'), Date.UTC(2026, 0, 15, 9));
+  assert.equal(p('15.01.2026 12:00', 'UTC-5'), Date.UTC(2026, 0, 15, 17));
+  assert.equal(p('2026-01-15 12:00:00 UTC'), Date.UTC(2026, 0, 15, 12));
+  assert.equal(p('2026-01-15T12:00:00+02:00', 'UTC'), Date.UTC(2026, 0, 15, 10));   // Wert geht vor
+  assert.equal(p('2026-01-15 12:00:00.250', 'UTC'), Date.UTC(2026, 0, 15, 12, 0, 0, 250));
+  assert.equal(p('1780066794', 'Europe/Berlin'), 1780066794000);
+  assert.equal(p('2026-01-15 12:00'), new Date(2026, 0, 15, 12).getTime());          // ohne Zone: Ortszeit
+  assert.equal(ctx.Model.zoneGueltig('Europe/Berlin'), true);
+  assert.equal(ctx.Model.zoneGueltig('+05:30'), true);
+  assert.equal(ctx.Model.zoneGueltig('Mars/Olympus'), false);
+
+  const { map } = ctx.Model.buildMapping(['chat', 'zeitstempel', 'zeitzone', 'text']);
+  const m = ctx.Model.rowToMessage({ chat: 'x', zeitstempel: '2026-01-15 12:00', zeitzone: 'UTC', text: 'a' }, map, 'SMS', 1);
+  assert.equal(m.ts, Date.UTC(2026, 0, 15, 12));
+  assert.equal(m.tz, 'UTC');
+  // „UTC" im Spaltennamen gilt als Hinweis
+  assert.equal(ctx.Model.buildMapping(['chat', 'Message Timestamp (UTC)']).utc, true);
+});
+
+test('Zahlen aus Geräte-Datenbanken: Mikro-, Nanosekunden, Apple-Nanosekunden, WebKit', () => {
+  const { ctx } = environment();
+  const p = ctx.Model.parseTimestamp;
+  assert.equal(p('811805666055722500'), 1790112866055);       // iOS sms.db ab iOS 11
+  assert.equal(p('1780066794508123'), 1780066794508);         // Unix-Mikrosekunden
+  assert.equal(p('1780066794508123456'), 1780066794508);      // Unix-Nanosekunden
+  assert.equal(p('13424540394508000'), 1780066794508);        // WebKit/Chrome
+  assert.equal(p('12345678901'), 0);                          // 11 Stellen: kein Zeitstempel
+  // Typnummern aus Datenbanken werden nicht als Etikett angezeigt
+  assert.equal(ctx.Model.normalizeType('9', 'Media/doc.pdf'), 'datei');
+  assert.equal(ctx.Model.normalizeType('0', ''), 'text');
+});
+
+test('Zuordnungsdialog: fremde Spalten, fester Chat, UTC, Antwort wird gemerkt', async () => {
+  const { ctx, dialoge } = environment();
+  ctx.Spaltenzuordnung.antwort = a => ({
+    map: { text: 'msg', sender: 'who', ts: 'when' }, zone: 'UTC', festerChat: 'Anna', messenger: 'Signal'
+  });
+  const datei = () => new File(['msg,who,when,extra\nHallo,+4917,2026-01-15 12:00,x\n'], 'query-result.csv');
+  await ctx.Import.importiereDateien([datei()]);
+  assert.equal(dialoge.length, 1);
+  assert.deepEqual(plain(dialoge[0].header), ['msg', 'who', 'when', 'extra']);
+  const { state } = ctx.Model;
+  assert.equal(state.messages.length, 1);
+  const m = state.messages[0];
+  assert.equal(m.conv, 'Anna');
+  assert.equal(m.messenger, 'signal');
+  assert.equal(m.ts, Date.UTC(2026, 0, 15, 12));
+  // Zweite Datei mit denselben Spalten (andere Reihenfolge, andere Schreibweise): keine Rückfrage
+  await ctx.Import.importiereDateien([new File(['WHO,Msg,When,Extra\n+4917,Tschüss,2026-01-15 12:05,y\n'], 'b.csv')]);
+  assert.equal(dialoge.length, 1);
+  assert.equal(state.messages.length, 2);
+});
+
+test('Zuordnungsdialog: eigenes Format fragt nicht, Überspringen meldet die fehlende Chatspalte', async () => {
+  const { ctx, dialoge, messages } = environment();
+  await ctx.Import.importiereDateien([new File(['chatname,nachrichteninhalt\nA,eins\n'], 'a.csv')]);
+  assert.equal(dialoge.length, 0);
+  await ctx.Import.importiereDateien([new File(['foo,bar\n1,2\n'], 'b.csv')]);
+  assert.equal(dialoge.length, 1);
+  assert.equal(ctx.Model.state.messages.length, 1);
+  assert.match(messages.at(-1), /Pflichtspalten fehlen/);
+});
+
+/* ---- iLEAPP ------------------------------------------------------------ */
+
+test('iLEAPP WhatsApp: Richtung, Partner, Name, UTC, Standort, ältere Version mit „Local User"', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([new File([tsv([
+    ['Timestamp', 'Direction', 'Sender Name', 'Chat Name', 'Message', 'Attachment File', 'From ID', 'Receiver', 'To ID',
+      'Thumb', 'Starred?', 'Latitude', 'Longitude', 'Chat ID'],
+    ['2026-09-04 14:41:25', 'Incoming', 'Lena', 'Lena', 'Hallo', '', '4917100@s.whatsapp.net', 'Local User', '', '', '0', '', '', '4917100@s.whatsapp.net'],
+    ['2026-09-04 14:42:00', 'Outgoing', 'Local User', 'Lena', '', '', '', 'Lena', '4917100@s.whatsapp.net', '', '0', '52.5', '13.4', '4917100@s.whatsapp.net']
+  ])], 'WhatsApp - Messages.tsv')]);
+  const c = ctx.Model.state.conversations[0];
+  assert.equal(c.messenger, 'whatsapp');
+  assert.equal(c.title, 'Lena');
+  const [ein, aus] = c.messages;
+  assert.equal(ein.ts, Date.UTC(2026, 8, 4, 14, 41, 25));
+  assert.equal(ein.sender, '4917100@s.whatsapp.net');
+  assert.equal(ein.senderName, 'Lena');
+  assert.equal(aus.fromMe, true);
+  assert.equal(aus.type, 'standort');
+  assert.equal(aus.text, '52.5, 13.4');
+
+  const alt = environment();
+  await alt.ctx.Import.importiereDateien([new File([tsv([
+    ['Timestamp', 'Sender Name', 'From ID', 'Receiver', 'To ID', 'Message', 'Attachment File'],
+    ['2026-09-04 14:43:00', 'Local User', '', 'Lena', '4917100@s.whatsapp.net', 'Bis gleich', '']
+  ])], 'whatsapp.tsv')]);
+  const m = alt.ctx.Model.state.messages[0];
+  assert.equal(m.fromMe, true);
+  assert.equal(m.conv, '4917100@s.whatsapp.net');
+});
+
+test('iLEAPP SMS & iMessage: Dienst als Messenger, Chat-ID, Lesestatus, Quelle mit ROWID', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([new File([tsv([
+    ['Message Timestamp', 'Read Timestamp', 'Delivered Timestamp', 'Attachment Timestamp', 'From Me', 'Sender',
+      'Chat Contact ID', 'Message', 'Attachment File', 'Chat Name', 'Chat Participants', 'Service', 'Message Direction',
+      'Message Sent', 'Message Delivered', 'Message Read', 'Account', 'Account Login', 'Destination Caller ID',
+      'Attachment Name', 'Attachment Mimetype', 'Attachment Size (Bytes)', 'Message Row ID', 'Message GUID', 'Chat ID'],
+    ['2026-09-04 10:00:00', '', '', '', '0', '+4917100', '+4917100', 'Hi', '', '', '+4917100', 'iMessage', 'Incoming',
+      '', '', '', '', '', '', '', '', '', '11', 'AAA-1', '3'],
+    ['2026-09-04 10:01:00', '', '', '', '1', '', '+4917100', 'Hallo zurück', '', '', '+4917100', 'iMessage', 'Outgoing',
+      'Yes', 'Yes', 'Yes', '', '', '', 'IMG_1.heic', 'image/heic', '', '12', 'AAA-2', '3']
+  ])], 'SMS - Messages.tsv')]);
+  const c = ctx.Model.state.conversations[0];
+  assert.equal(c.messenger, 'imessage');
+  assert.equal(c.conv, 'Chat 3');
+  assert.equal(c.title, '+4917100');
+  const [ein, aus] = c.messages;
+  assert.equal(ein.id, 'AAA-1');
+  assert.equal(ein.source, 'sms.db, ROWID 11');
+  assert.equal(aus.fromMe, true);
+  assert.equal(aus.status, 'gelesen');
+  assert.equal(aus.type, 'bild');
+});
+
+test('iLEAPP Signal und Threema: Richtung, gelöscht, Typ', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([
+    new File([tsv([
+      ['Timestamp', 'Received Timestamp', 'Server Timestamp', 'Direction', 'Author', 'Conversation With', 'Message',
+        'Attachments', 'Attachment Count', 'Read', 'Voice Message', 'View Once', 'Remotely Deleted',
+        'Disappearing Timer (Seconds)', 'Thread ID', 'Row ID'],
+      ['2026-09-04 10:00:00', '', '', 'Incoming', '+4917100', '+4917100', 'geheim', '', '0', 'Yes', 'No', 'No', 'Yes', '', 'T1', '7']
+    ])], 'Signal - Messages.tsv'),
+    new File([tsv([
+      ['Timestamp', 'From Me', 'Sender Name', 'Chat', 'Message', 'Attachment File', 'Chat-ID', 'Message-ID', 'Receiver',
+        'Message Type', 'Latitude', 'Longitude', 'Accuracy'],
+      ['2026-09-04 11:00:00', '1', 'ich', 'Team', 'Abstimmung', '', 'C9', 'M1', 'Team', 'BallotMessage', '', '', '']
+    ])], 'Threema - Chats.tsv')
+  ]);
+  const signal = ctx.Model.state.messages.find(m => m.messenger === 'signal');
+  assert.equal(signal.deleted, true);
+  assert.equal(signal.text, 'geheim');
+  assert.equal(signal.conv, 'T1');
+  const threema = ctx.Model.state.messages.find(m => m.messenger === 'threema');
+  assert.equal(threema.fromMe, true);
+  assert.equal(threema.type, 'umfrage');
+});
+
+/* ---- SQL-Exporte aus Geräte-Datenbanken -------------------------------- */
+
+test('SQL-Export WhatsApp iPhone (ZWAMESSAGE): Apple-Zeit, Richtung, Chat, Typ, Quelle', async () => {
+  const { ctx, dialoge } = environment();
+  await ctx.Import.importiereDateien([new File([
+    'Z_PK,ZISFROMME,ZMESSAGEDATE,ZTEXT,ZFROMJID,ZTOJID,ZCHATSESSION,ZMESSAGETYPE,ZSTANZAID,ZPARTNERNAME,ZMEDIALOCALPATH\n' +
+    '101,0,811805666.5,Hallo,4917100@s.whatsapp.net,NULL,3,0,3EB0A,Lena,NULL\n' +
+    '102,1,811805700,,NULL,4917100@s.whatsapp.net,3,1,3EB0B,Lena,Media/4917100@s.whatsapp.net/a.jpg\n'], 'zwamessage.csv')]);
+  assert.equal(dialoge.length, 0);
+  const c = ctx.Model.state.conversations[0];
+  assert.equal(c.messenger, 'whatsapp');
+  assert.equal(c.conv, 'ZCHATSESSION 3');
+  assert.equal(c.title, 'Lena');
+  const [a, b] = c.messages;
+  assert.equal(a.ts, 1790112866500);
+  assert.equal(a.sender, '4917100@s.whatsapp.net');
+  assert.equal(a.id, '3EB0A');
+  assert.equal(a.source, 'ChatStorage.sqlite, ZWAMESSAGE Z_PK 101');
+  assert.equal(b.fromMe, true);
+  assert.equal(b.type, 'bild');
+  assert.equal(b.media, 'Media/4917100@s.whatsapp.net/a.jpg');
+});
+
+test('SQL-Export WhatsApp Android (message, alt: messages): Millisekunden, gelöscht, Gruppe', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([new File([
+    '_id,chat_row_id,from_me,key_id,sender_jid_row_id,timestamp,message_type,text_data\n' +
+    '1,2,0,K1,0,1780066794508,0,Moin\n' +
+    '2,2,0,K2,0,1780066800000,15,\n'], 'message.csv')]);
+  const [a, b] = ctx.Model.state.conversations[0].messages;
+  assert.equal(a.conv, 'chat_row_id 2');
+  assert.equal(a.ts, 1780066794508);
+  assert.equal(b.deleted, true);
+
+  const alt = environment();
+  await alt.ctx.Import.importiereDateien([new File([
+    '_id,key_remote_jid,key_from_me,key_id,remote_resource,data,timestamp,media_wa_type,media_mime_type,media_name\n' +
+    '5,123-456@g.us,0,X1,4917100@s.whatsapp.net,Gruppengruß,1780066794508,0,,\n' +
+    '6,123-456@g.us,1,X2,,,1780066795000,2,audio/ogg,PTT-1.opus\n'], 'messages.csv')]);
+  const [g1, g2] = alt.ctx.Model.state.conversations[0].messages;
+  assert.equal(g1.sender, '4917100@s.whatsapp.net');
+  assert.equal(g1.conv, '123-456@g.us');
+  assert.equal(g2.fromMe, true);
+  assert.equal(g2.type, 'audio');
+});
+
+test('SQL-Export iOS sms.db und Android mmssms.db', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([
+    new File(['ROWID,guid,text,handle_id,date,is_from_me,service,is_read,is_delivered,chat_identifier\n' +
+      '1,G-1,Hallo,4,811805666055722500,0,SMS,1,0,+4917100\n' +
+      '2,G-2,Hi,0,811805700000000000,1,SMS,0,1,+4917100\n'], 'sms-db.csv'),
+    new File(['_id,thread_id,address,date,type,body,read\n' +
+      '9,4,+4916200,1780066794508,1,Eingang,1\n' +
+      '10,4,+4916200,1780066800000,2,Ausgang,1\n'], 'mmssms.csv')
+  ]);
+  const { state } = ctx.Model;
+  const ios = state.conversations.find(c => c.conv === '+4917100');
+  assert.equal(ios.messages[0].ts, 1790112866055);
+  assert.equal(ios.messages[1].fromMe, true);
+  assert.equal(ios.messages[1].status, 'zugestellt');
+  const android = state.conversations.find(c => c.conv === 'Thread 4');
+  assert.deepEqual(plain(android.messages.map(m => [m.fromMe, m.status])), [[false, ''], [true, 'gesendet']]);
+});
+
+/* ---- Anrufe ------------------------------------------------------------- */
+
+test('ALEAPP-Ordner: WhatsApp-Anrufe landen im Einzel- bzw. Gruppenchat, ausgehende Einzelanrufe gesammelt', async () => {
+  const { ctx } = environment();
+  const ordner = 'ALEAPP_Reports/_TSV Exports/';
+  const dateien = [
+    new File([tsv([
+      ['Message Timestamp', 'Received Timestamp', 'Final Location Timestamp', 'Message Direction',
+        'Other Participant WA User Name', 'Message', 'Media', 'Sending Party JID', 'Message Type', 'Local Path To Media'],
+      ['2026-09-05 08:00:00', '', '', 'Incoming', 'Carl', 'Ruf mal an', '', '4916000000@s.whatsapp.net', 'Text', '']
+    ])], 'WhatsApp - One To One Messages.tsv'),
+    new File([tsv([
+      ['Message Timestamp', 'Received Timestamp', 'Conversation Name', 'Sending Party', 'Sending Party JID',
+        'Message Direction', 'Message Type', 'Message', 'Media', 'Local Path to Media'],
+      ['2026-09-05 09:00:00', '', 'Lauftreff', 'Bea', '4917000000@s.whatsapp.net', 'Incoming', 'Text', 'Wer läuft?', '', '']
+    ])], 'WhatsApp - Group Messages.tsv'),
+    new File([tsv([
+      ['Call Start Timestamp', 'Call End Timestamp', 'Call Duration', 'Group Name', 'Call Direction', 'Caller', 'Caller JID', 'Call Type'],
+      ['2026-09-05 08:05:00', '2026-09-05 08:08:25', '00:03:25', '', 'Incoming', 'Carl', '4916000000@s.whatsapp.net', 'Audio'],
+      ['2026-09-05 08:30:00', '2026-09-05 08:30:00', '00:00:00', '', 'Outgoing', 'Self', '', 'Video'],
+      ['2026-09-05 09:10:00', '2026-09-05 09:20:00', '00:10:00', 'Lauftreff', 'Outgoing', 'Self', '', 'Video']
+    ])], 'WhatsApp - Call Logs.tsv')
+  ];
+  const paths = new Map(dateien.map(f => [f, ordner + f.name]));
+  await ctx.Import.importiereDateien(dateien, { paths, fromFolder: true });
+  const { state } = ctx.Model;
+  const carl = state.conversations.find(c => c.conv === 'Einzelchat Carl');
+  assert.deepEqual(plain(carl.messages.map(m => [m.type, m.sender, m.duration ?? null])),
+    [['text', 'Carl', null], ['anruf', 'Carl', 205]]);
+  const gruppe = state.conversations.find(c => c.conv === 'Gruppe Lauftreff');
+  const gruppenAnruf = gruppe.messages.find(m => m.type === 'anruf');
+  assert.equal(gruppenAnruf.fromMe, true);
+  assert.equal(gruppenAnruf.video, true);
+  const ohnePartner = state.conversations.find(c => c.conv === 'WhatsApp-Anrufe ausgehend');
+  assert.equal(ohnePartner.messages.length, 1);
+  assert.equal(ohnePartner.messages[0].duration, 0);
+  assert.equal(ctx.Model.anruf(ohnePartner.messages[0]).info, 'keine Verbindung');
+  assert.equal(state.conversations.length, 3);          // alles WhatsApp, drei Chats
+});
+
+test('ALEAPP-Anrufliste (calllog.db): HTML im Typ, verpasst, Dauer, gelöscht', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([new File([tsv([
+    ['Call Date', 'Phone Account Address', 'Partner', 'Type', 'Duration in Secs', 'Partner Location', 'Country ISO',
+      'Data', 'Mime Type', 'Transcription', 'Deleted'],
+    ['2026-09-05 10:00:00', ' ', '+4917100', 'Missed <i data-feather="phone-missed" stroke="red"></i>', '0', ' ', 'DE', ' ', ' ', ' ', '0'],
+    ['2026-09-05 10:05:00', ' ', '+4917100', 'Outgoing <i data-feather="phone-outgoing" stroke="green"></i>', '185', ' ', 'DE', ' ', ' ', ' ', '1']
+  ])], 'Call logs.tsv')]);
+  const c = ctx.Model.state.conversations[0];
+  assert.equal(c.messenger, 'telefon');
+  assert.equal(c.conv, '+4917100');
+  const [verpasst, raus] = c.messages;
+  assert.equal(verpasst.callResult, 'verpasst');
+  assert.equal(ctx.Model.anruf(verpasst).verpasst, true);
+  assert.equal(raus.fromMe, true);
+  assert.equal(raus.duration, 185);
+  assert.equal(raus.deleted, true);
+  assert.equal(ctx.Model.anruf(raus).info, '3:05 min');
+});
+
+test('iLEAPP: WhatsApp-Anrufe teilen den Chat mit den Nachrichten (gleiche JID)', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([
+    new File([tsv([
+      ['Timestamp', 'Direction', 'Sender Name', 'Chat Name', 'Message', 'Attachment File', 'From ID', 'Receiver', 'To ID', 'Chat ID'],
+      ['2026-09-04 14:41:25', 'Incoming', 'Lena', 'Lena', 'Hallo', '', '4917100@s.whatsapp.net', 'Local User', '', '4917100@s.whatsapp.net']
+    ])], 'WhatsApp - Messages.tsv'),
+    new File([tsv([
+      ['Starting Timestamp', 'Ending Timestamp', 'Duration H:M:S', 'Direction', 'Disconnected cause', 'Contact ID',
+        'Incoming (as stored)', 'Video Call', 'Missed', 'Missed Reason (as stored)', 'Bytes Sent', 'Bytes Received',
+        'Call ID', 'Group JID', 'Aggregate Event ID'],
+      ['2026-09-04 14:50:00', '', '00:00:00', 'Incoming', 'Missed', '4917100@s.whatsapp.net', '1', 'No', 'Yes', '', '', '', 'C1', '', '']
+    ])], 'WhatsApp - Call History.tsv')
+  ]);
+  const { state } = ctx.Model;
+  assert.equal(state.conversations.length, 1);
+  const [text, anruf] = state.conversations[0].messages;
+  assert.equal(text.type, 'text');
+  assert.equal(anruf.type, 'anruf');
+  assert.equal(anruf.callResult, 'verpasst');
+  assert.equal(anruf.sender, text.sender);
+});
+
+test('iLEAPP-Anrufliste: Telefon, FaceTime-Video und WhatsApp über CallKit', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([new File([tsv([
+    ['Starting Timestamp', 'Ending Timestamp', 'Service Provider', 'Call Type', 'Call Direction', 'Phone Number',
+      'Answered', 'Call Duration', 'FaceTime Data', 'Disconnected Cause', 'ISO Country Code', 'Location'],
+    ['2026-09-04 10:00:00', '', 'com.apple.Telephony', 'Phone Call', 'Incoming', '+4917100', 'No', '00:00:00', '', 'Ended', 'DE', ''],
+    ['2026-09-04 11:00:00', '', 'com.apple.FaceTime', 'FaceTime Video', 'Outgoing', 'anna@example.org', 'Yes', '00:12:01', '', 'Ended', '', ''],
+    ['2026-09-04 12:00:00', '', 'net.whatsapp.WhatsApp', 'Third-Party App', 'Outgoing', '+4917100', 'Yes', '00:01:00', '', 'Ended', '', '']
+  ])], 'Call History.tsv')]);
+  const { state } = ctx.Model;
+  const tel = state.messages.find(m => m.messenger === 'telefon');
+  assert.equal(tel.callResult, 'verpasst');
+  const ft = state.messages.find(m => m.messenger === 'facetime');
+  assert.equal(ft.video, true);
+  assert.equal(ft.duration, 721);
+  assert.ok(state.messages.find(m => m.messenger === 'whatsapp' && m.type === 'anruf'));
+});
+
+test('SQL-Exporte: Android calllog.db, iPhone ZCALLRECORD und eigene CSV mit Anrufen', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([
+    new File(['_id,number,date,duration,type,name,features\n' +
+      '1,+4917100,1780066794508,65,1,Lena,0\n2,+4917100,1780066900000,0,5,Lena,1\n'], 'calls.csv'),
+    new File(['Z_PK,ZADDRESS,ZDATE,ZDURATION,ZORIGINATED,ZANSWERED,ZCALLTYPE,ZSERVICE_PROVIDER\n' +
+      '7,+4916200,811805666.5,30.0,1,1,1,com.apple.Telephony\n'], 'zcallrecord.csv'),
+    new File(['chatname;von_mir;zeitstempel;nachricht_typ;dauer;anruf_ergebnis\n' +
+      'Papa;0;2026-09-01 18:00;Videoanruf;0:42;\nPapa;1;2026-09-01 19:00;anruf;;verpasst\n'], 'eigen.csv')
+  ]);
+  const { state } = ctx.Model;
+  const lena = state.conversations.find(c => c.conv === '+4917100');
+  assert.equal(lena.title, 'Lena');
+  assert.deepEqual(plain(lena.messages.map(m => [m.duration, m.callResult || '', m.video || false])),
+    [[65, '', false], [0, 'abgelehnt', true]]);
+  const ios = state.conversations.find(c => c.conv === '+4916200');
+  assert.equal(ios.messages[0].fromMe, true);
+  assert.equal(ios.messages[0].ts, 1790112866500);
+  const papa = state.conversations.find(c => c.conv === 'Papa');
+  assert.deepEqual(plain(papa.messages.map(m => [m.type, m.video || false, m.duration ?? null, m.callResult || ''])),
+    [['anruf', true, 42, ''], ['anruf', false, null, 'verpasst']]);
+  assert.equal(ctx.Model.dauerText(3723), '1:02:03 h');
 });

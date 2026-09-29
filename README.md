@@ -59,7 +59,8 @@ demselben Muster ein.
 | Dokumente | PDFs zeigen eine Seitenvorschau, Word/Excel/Text eine Leseprobe, ein Klick öffnet den Inhalt. Alle Dokumente werden im Hintergrund gelesen und sind damit durchsuchbar |
 | Sprachnachrichten | **🎤** in der Chat-Kopfzeile transkribiert alle Sprachnachrichten des Chats, 🎤 an der Sprechblase nur diese eine |
 | Übersetzen | **🌐** in der Chat-Kopfzeile übersetzt den ganzen Chat, 🌐 an der Sprechblase nur diese eine. Das Original bleibt darunter sichtbar |
-| Einstellungen dazu | das **▾** neben 🎤 bzw. 🌐: Zielsprache, Verfahren, Modell, Transkripte löschen |
+| Einstellungen dazu | das **▾** neben 🎤 bzw. 🌐: Ausgangs- und Zielsprache, Verfahren, Modell, Transkripte löschen |
+| Ortszeit / UTC | Schalter **Ortszeit** in der Seitenleiste: zeigt alle Zeiten in UTC an (Sprechblasen, Tagestrenner, Chatliste, Details, Textexport). Der Tooltip der Uhrzeit nennt jeweils auch die andere Sicht. Die Wahl wird gemerkt |
 | Fortschritt | Während eines Durchlaufs zeigt ein Balken über dem Chat den Stand an, etwa „Übersetzt… 12 / 14". Er bleibt auch bei geschlossenem Panel sichtbar und lässt sich dort abbrechen |
 | Suchen (alle Chats) | Feld oben links, `Strg+K`. Zeigt die Trefferzahl je Chat, ein Klick springt zum Treffer |
 | Suchen (im Chat) | Lupe in der Chat-Kopfzeile, `Strg+F`, mit `Enter` und `Umschalt+Enter` durch die Treffer |
@@ -67,7 +68,7 @@ demselben Muster ein.
 | Sortieren | Auswahlfeld über der Chatliste: neueste, älteste, meiste Nachrichten, Name |
 | Eigene Seite festlegen | **Ich:** in der Chat-Kopfzeile. Diese Person erscheint rechts in Blau |
 | Details und Statistik | ⓘ rechts oben: Teilnehmer, Zeitraum, Nachrichtentypen, Medien |
-| Exportieren | ⤓ in der Chat-Kopfzeile für den Chat als Text, ⤓ in der Seitenleiste für alles als JSON |
+| Exportieren | ⤓ in der Chat-Kopfzeile für den Chat als **PDF-Bericht** (siehe unten), ⤓ in der Seitenleiste für alles als JSON |
 | Hell und Dunkel | ◐ in der Seitenleiste |
 | Alles löschen | 🗑 in der Seitenleiste |
 
@@ -133,6 +134,24 @@ werden den Nachrichten zugeordnet. Einzelne TSV-Dateien gehen über **+ Import**
 | `WhatsApp - Messages` | WhatsApp | altes Datenbankschema (Tabelle `messages`) |
 | `sms messages`, `mms messages` | SMS | beide landen im selben Thread; MMS haben keine Richtung, die eigene Nummer über **Ich:** festlegen |
 | `Google Messages` | Google Messages | eigene Quelle, überschneidet sich inhaltlich mit SMS/MMS |
+| `WhatsApp - Call Logs` | WhatsApp | Anrufe erscheinen im selben Chat wie die Nachrichten (Einzel- und Gruppenchat) |
+| `Call logs` (calllog.db), `Call Logs` (contacts2.db) | Telefon | ein Chat je Rufnummer: eingehend, ausgehend, verpasst, abgelehnt, Mailbox |
+
+**Wie die WhatsApp-Daten zusammenkommen:** Alle WhatsApp-Berichte eines ALEAPP-Ordners
+landen unter WhatsApp, ein Chat je Unterhaltung. Nachrichten und Anrufe mit derselben
+Person bzw. Gruppe stehen im selben Chat. Zugeordnet wird so, wie ALEAPP es liefert:
+Einzelchats über den WhatsApp-Namen (ohne Namen über die JID), Gruppen über den
+Gruppennamen. Daraus folgen drei Grenzen:
+
+- Zwei Kontakte oder Gruppen mit gleichem Namen fallen zusammen.
+- Bei **ausgehenden Einzelanrufen** nennt ALEAPP den Angerufenen nicht. Sie stehen
+  gesammelt im Chat „Ausgehende WhatsApp-Anrufe“, statt jemandem falsch zugeordnet zu
+  werden.
+- Den Ausgang eines Anrufs (verpasst, abgelehnt) liefert der Bericht nicht. Ein Anruf
+  ohne Dauer erscheint deshalb als „keine Verbindung“.
+
+Ein WhatsApp-Textexport (TXT/ZIP) desselben Chats wird nicht mit den ALEAPP-Daten
+zusammengelegt, sondern steht als eigener Chat daneben.
 
 Erkannt wird an den Spalten, nicht am Dateinamen. ALEAPP schreibt Zeiten in UTC; sie
 werden als UTC gelesen und in Ortszeit angezeigt.
@@ -141,6 +160,74 @@ Bekannte Lücke in ALEAPP selbst (Stand September 2026): `WhatsApp - One To One 
 verknüpft Einzelchats über die Telefonnummer mit dem Adressbuch. Neuere WhatsApp-Versionen
 führen Einzelchats unter LID-Kennungen (`…@lid`), solche Nachrichten fehlen dann im
 Bericht vollständig. Gruppen sind nicht betroffen.
+
+## iLEAPP-Berichte
+
+Genauso wie bei ALEAPP: TSV-Dateien aus `_TSV Exports` einzeln importieren oder den
+Berichtsordner ablegen. Zeiten gelten als UTC.
+
+| Bericht | Messenger | Hinweis |
+| --- | --- | --- |
+| `SMS & iMessage` (sms.db) | iMessage, SMS, RCS | Apple legt je Dienst einen eigenen Chat an, das bleibt so; Lesestatus und ROWID als Quelle |
+| `WhatsApp - Messages` (ChatStorage.sqlite) | WhatsApp | auch ältere iLEAPP-Versionen ohne Richtungsspalte („Local User“); in Gruppen nennt der Bericht nur die Gruppe, nicht das Mitglied |
+| `Threema - Chats` | Threema | Abstimmungen erscheinen als Umfrage |
+| `Signal - Messages` | Signal | „Remotely Deleted“ wird als gelöscht markiert |
+| `Telegram Messages` | Telegram | Aktionen ohne Text erscheinen als Systemnachricht |
+| `WhatsApp - Call History` | WhatsApp | Anrufe im selben Chat wie die Nachrichten (gleiche JID), mit verpasst/abgelehnt und Video |
+| `Call History` | Telefon, FaceTime, WhatsApp | iPhone-Anrufliste; nicht angenommene eingehende Anrufe gelten als verpasst |
+
+## SQL-Exporte aus Geräte-Datenbanken
+
+Wer die Datenbanken selbst abfragt (DB Browser for SQLite, `sqlite3 -csv` …) und das
+Ergebnis als CSV speichert, muss nichts umbenennen. Erkannt werden die rohen Spaltennamen
+dieser Tabellen:
+
+| Datenbank | Tabelle | erkannt an |
+| --- | --- | --- |
+| WhatsApp iPhone `ChatStorage.sqlite` | `ZWAMESSAGE` | `ZMESSAGEDATE`, `ZISFROMME` |
+| WhatsApp Android `msgstore.db` | `message` | `chat_row_id`, `from_me` |
+| WhatsApp Android `msgstore.db` (alt) | `messages` | `key_remote_jid`, `key_from_me` |
+| iPhone `sms.db` | `message` | `guid`, `is_from_me`, `date` |
+| Android `mmssms.db` | `sms` | `thread_id`, `address`, `body`, `type` |
+| Android `calllog.db` | `calls` | `number`, `date`, `duration`, `type` |
+| WhatsApp Android `msgstore.db` | `call_log` | `call_id`, `video_call`, `duration`, `from_me` |
+| iPhone `CallHistory.storedata` | `ZCALLRECORD` | `ZADDRESS`, `ZORIGINATED`, `ZDATE`, `ZDURATION` |
+| WhatsApp iPhone `CallHistory.sqlite` | `ZWACDCALLEVENT` | `ZOUTCOME`, `ZDURATION`, `ZDATE` |
+
+Damit WhatsApp-Anrufe aus SQL-Exporten im Chat der Nachrichten landen, braucht es in
+beiden Abfragen dieselbe Chat-Kennung. Beim iPhone ist das `ZCONTACTJID` bzw.
+`ZJIDSTRING`/`ZGROUPJIDSTRING`, bei Android `jid.raw_string` als Spalte `chat_jid`. Sonst
+stehen sie unter ihrer Zeilennummer (`jid_row_id …`) daneben. Bei `ZWACDCALLEVENT`
+ergibt sich die Richtung nur mit `ZINCOMING` aus `ZWAAGGREGATECALLEVENT`, ohne sie gilt
+ein Anruf als eingehend.
+
+Spalten aus einem JOIN werden mitgenommen, wenn sie in der Abfrage stehen, zum Beispiel
+`ZPARTNERNAME`, `ZCONTACTJID`, `ZMEMBERJID` und `ZMEDIALOCALPATH` bei iPhone-WhatsApp,
+`chat_jid`, `sender_jid` und `file_path` bei Android-WhatsApp oder `chat_identifier`,
+`display_name` und `filename` bei `sms.db`. Ohne sie bleiben die Zeilennummern der
+Datenbank als Chat-Kennung stehen (`ZCHATSESSION 3`, `chat_row_id 2`). Die Chats werden
+trotzdem richtig getrennt, nur ohne Namen. `NULL` gilt als leer. Jede Nachricht trägt ihre
+Herkunft (Datenbank, Tabelle, Zeile) im Tooltip der Uhrzeit.
+
+Zeiten bleiben dabei Zahlen, eine Umrechnung in SQL ist nicht nötig: Apple-Sekunden,
+Apple-Nanosekunden (`sms.db` ab iOS 11) und Unix-Millisekunden erkennt der Import an der
+Stellenzahl.
+
+## Andere Formate: Spalten zuordnen
+
+Hat eine CSV Spalten, die ChatVisualizer nicht kennt, erscheint beim Import der Dialog
+**Spalten zuordnen**. Die erkannten Spalten sind dort vorausgewählt, daneben stehen
+Beispielwerte. Außerdem lassen sich einstellen:
+
+- die Zeitzone für Zeiten ohne Zonenangabe (Ortszeit, UTC, Europe/Berlin oder eine
+  beliebige Zone),
+- ein fester Chatname für Dateien ohne Chatspalte, etwa den SQL-Export eines einzelnen
+  Chats,
+- der Messenger, falls keine Spalte ihn nennt.
+
+Eine **Zeitprobe** zeigt die erste Zeit als Ortszeit und als UTC, bevor importiert wird.
+Die Antwort gilt für alle Dateien mit denselben Spalten. Vergessen lässt sie sich im
+Hilfefenster (**?**).
 
 ## CSV-Format
 
@@ -192,6 +279,38 @@ Nachrichten werden über `messenger + nachricht_id` eindeutig gehalten, ohne ID-
 Chat, Zeitpunkt, Absender und Inhalt. Dieselbe Datei zweimal zu importieren erzeugt deshalb
 keine Duplikate, sondern aktualisiert die vorhandenen Nachrichten.
 
+## Chat als PDF-Bericht
+
+⤓ in der Chat-Kopfzeile öffnet den Dialog **Chat als PDF ausgeben**. Dort lassen sich
+einstellen:
+
+- der Zeitraum (von/bis, in der gerade angezeigten Zeitzone),
+- ein Aktenzeichen oder Vermerk,
+- ob Bilder eingebettet werden,
+- ob Übersetzungen, Transkripte und technische Angaben je Nachricht (ID, Rohwert der
+  Zeit, Quelle) mit hinein sollen,
+- bei aktiver Chatsuche: nur die Treffer.
+
+**PDF erstellen** öffnet den Druckdialog des Browsers, dort **„Als PDF speichern“** wählen.
+Der vorgeschlagene Dateiname ist „Chat <Titel> <Datum>“.
+
+Der Bericht besteht aus einem Deckblatt und dem Verlauf:
+
+- **Deckblatt:** Messenger, Chat-Kennung, Teilnehmer mit Name und Kennung, Zeitraum,
+  Anzahl, Zeitzone, Filter, Quellen, Erstellzeit und eine SHA-256-Prüfsumme über die
+  enthaltenen Nachrichten. Dieselben Daten ergeben dieselbe Prüfsumme.
+- **Verlauf:** Sprechblasen wie im Programm, mit Datum und Uhrzeit auf die Sekunde.
+- **Kopf- und Fußzeile:** Chatname, Vermerk und „Seite X von Y“.
+
+Übersetzungen und Transkripte stehen immer nach dem Originaltext und sind als maschinell
+gekennzeichnet. Gelöschte Nachrichten tragen einen Vermerk. Bilder werden verkleinert
+eingebettet (höchstens 500 je Bericht), andere Anhänge erscheinen mit Dateiname und Pfad.
+
+Warum über den Druckdialog? Ein eigener PDF-Erzeuger müsste Schriften für Kyrillisch,
+Arabisch, Chinesisch und Emoji mitbringen. So nimmt der Browser die Schriften des
+Systems, und nichts verlässt den Rechner. Im Druckdialog die „Kopf- und Fußzeilen“ des
+Browsers ausschalten, sie überlagern sonst die eigenen.
+
 ## Übersetzung
 
 Fremdsprachige Nachrichten lassen sich ins Deutsche oder eine andere Sprache übersetzen.
@@ -203,7 +322,15 @@ Bedient wird das über **🌐** in der Chat-Kopfzeile. Ein Klick übersetzt den 
 bereits Übersetztes wird übersprungen.
 
 - Der Fortschritt steht über dem Chat und lässt sich dort abbrechen.
-- Das **▾** daneben öffnet die Einstellungen: Zielsprache, Löschen.
+- Das **▾** daneben öffnet die Einstellungen: **Von** (Ausgangssprache, je Chat) und
+  **Nach** (Zielsprache, für alle Chats), dazwischen ⇄ zum Tauschen, außerdem Löschen.
+- Ausgangssprache „Automatisch erkennen“ ist der Normalfall. Wird sie für einen Chat fest
+  gewählt, gilt jede Nachricht dieses Chats als in dieser Sprache geschrieben. Ausnahme:
+  Ist „schon in der Zielsprache überspringen“ an, bleiben etwa die eigenen deutschen
+  Antworten unübersetzt. Das hilft bei kurzen Nachrichten und bei Sprachen, die die
+  Erkennung verwechselt (Russisch/Ukrainisch, Serbisch/Kroatisch …). Die feste Wahl gilt
+  auch für die Transkription der Sprachnachrichten im selben Chat. Beim Wechsel werden
+  Übersetzungen verworfen, die aus einer anderen Ausgangssprache entstanden sind.
 - Einzelne Nachricht: 🌐 erscheint beim Überfahren einer Sprechblase, ↩ nimmt die
   Übersetzung zurück.
 - Übersetzungen werden gespeichert, stehen nach einem Neustart sofort bereit und werden
@@ -224,7 +351,11 @@ das Panel das. Alle Aufrufe laufen in ein Zeitlimit, damit die Oberfläche nicht
 Zum Übersetzen wird nichts installiert und nichts mitgeliefert, das erledigt der Browser.
 Das Modell im Ordner `modelle/` ist nur für die Spracherkennung zuständig.
 
-Weitere Schalter im Panel: Zielsprache, „Nachrichten in der Zielsprache überspringen" und
+Muss der Browser ein Sprachpaket erst laden, verlangt Chrome dafür einen frischen Klick.
+Deshalb wird das Paket gleich beim Klick auf 🌐 angefordert, noch vor der Spracherkennung.
+Schlägt es trotzdem fehl, sagt die Meldung, dass ein weiterer Klick nötig ist.
+
+Weitere Schalter im Panel: „Nachrichten, die schon in der Zielsprache sind, überspringen“ und
 das Löschen aller Übersetzungen des Chats. Reine Emoji- und Link-Nachrichten werden nicht
 übersetzt.
 

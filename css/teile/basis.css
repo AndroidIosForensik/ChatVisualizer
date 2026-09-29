@@ -69,8 +69,9 @@ a { color: var(--accent); }
 
 /* ------------------------------------------------------------------ Layout */
 #app {
+  --seite: 340px;          /* Breite der Seitenleiste; mit der Maus verstellbar (app.js) */
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr) 0;
+  grid-template-columns: var(--seite) minmax(0, 1fr) 0;
   /* Ohne Zeilenangabe wüchse die Zeile mit dem Inhalt – dann bekämen die
      Spalten keine eigene Bildlaufleiste und der untere Teil wäre abgeschnitten. */
   grid-template-rows: minmax(0, 1fr);
@@ -79,7 +80,8 @@ a { color: var(--accent); }
   transition: grid-template-columns .18s ease;
 }
 #app > * { min-height: 0; }
-#app:has(.details.open) { grid-template-columns: 340px minmax(0, 1fr) 320px; }
+#app:has(.details.open) { grid-template-columns: var(--seite) minmax(0, 1fr) 320px; }
+#app.ziehen { transition: none; cursor: col-resize; user-select: none; }
 
 /* ------------------------------------------------------------------ Buttons */
 .btn {
@@ -94,6 +96,8 @@ a { color: var(--accent); }
 .btn:active { transform: translateY(1px); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled, .btn:disabled:hover { opacity: .45; cursor: not-allowed; filter: none; border-color: var(--line); transform: none; }
+.btn.primary:disabled { border-color: var(--accent); }
 .btn.ghost { background: transparent; }
 .btn.big { padding: 11px 20px; border-radius: 12px; font-size: 15px; }
 

@@ -20,6 +20,8 @@
     wechat:    { label: 'WeChat',    color: '#07C160', glyph: 'bubble-dots'  },
     email:     { label: 'E-Mail',    color: '#C4544B', glyph: 'envelope'     },
     matrix:    { label: 'Matrix',    color: '#0DBD8B', glyph: 'hash'         },
+    telefon:   { label: 'Telefon',   color: '#5E7A99', glyph: 'phone'        },
+    facetime:  { label: 'FaceTime',  color: '#30B04A', glyph: 'video'        },
     unknown:   { label: 'Unbekannt', color: '#8A93A6', glyph: 'bubble'       }
   };
 
@@ -31,7 +33,9 @@
     'mms': 'sms', 'text': 'sms',
     'ms teams': 'teams', 'microsoft teams': 'teams',
     'mail': 'email', 'e-mail': 'email', 'gmail': 'email', 'outlook': 'email',
-    'snap': 'snapchat', 'tg': 'telegram'
+    'snap': 'snapchat', 'tg': 'telegram',
+    'phone': 'telefon', 'phone call': 'telefon', 'anruf': 'telefon', 'anrufe': 'telefon',
+    'telephony': 'telefon', 'call log': 'telefon', 'call logs': 'telefon'
   };
 
   function normalize(raw) {
@@ -69,6 +73,8 @@
     'bolt-bubble': '<path d="M12 3.5c-4.8 0-8.6 3.5-8.6 7.9 0 2.4 1.2 4.6 3.1 6v3.1l2.9-1.6c.8.2 1.7.3 2.6.3 4.8 0 8.6-3.5 8.6-7.8S16.8 3.5 12 3.5z"/><path d="m7.6 13.6 3-3.2 1.8 1.8 2.9-1.9-3 3.2-1.8-1.8z" fill="var(--glyph-bg)"/>',
     'ghost': '<path d="M12 3.4c-3.3 0-5.6 2.3-5.6 5.5 0 1.6-.3 2.6-1.3 3.4-.6.5-.4 1.2.4 1.4l1 .2c-.2.9-.9 1.4-1.7 1.7-.7.2-.6 1 .1 1.2 1.2.3 2.3.3 3.1.6.6.2.9.6 1.3 1 .6.6 1.4 1 2.7 1s2.1-.4 2.7-1c.4-.4.7-.8 1.3-1 .8-.3 1.9-.3 3.1-.6.7-.2.8-1 .1-1.2-.8-.3-1.5-.8-1.7-1.7l1-.2c.8-.2 1-.9.4-1.4-1-.8-1.3-1.8-1.3-3.4 0-3.2-2.3-5.5-5.6-5.5z"/>',
     'hash': '<path d="M9.4 4h2l-.6 4h3l.6-4h2l-.6 4H19v2h-3.5l-.5 4H19v2h-4.3l-.6 4h-2l.6-4h-3l-.6 4h-2l.6-4H5v-2h3.5l.5-4H5V8h4.3zm1.1 6-.5 4h3l.5-4z"/>',
+    'phone': '<path d="M7.2 10.6c1.3 2.6 3.5 4.8 6.2 6.2l2-2c.3-.3.7-.4 1-.2 1 .4 2.2.6 3.4.6.5 0 .9.4.9.9v3.2c0 .5-.4.9-.9.9C11 20.2 3.8 13 3.8 4.2c0-.5.4-.9.9-.9h3.2c.5 0 .9.4.9.9 0 1.2.2 2.4.6 3.4.1.3 0 .7-.2 1z"/>',
+    'video': '<rect x="3" y="6.5" width="12.5" height="11" rx="2.2"/><path d="m16.5 10.6 4.5-2.7v8.2l-4.5-2.7z"/>',
     'people': '<circle cx="9" cy="8.5" r="3.2"/><circle cx="16.5" cy="9.5" r="2.4"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5z"/><path d="M15.4 14.2c2.6 0 5.1 1.5 5.1 4.8h-4.3c0-1.9-.5-3.5-1.4-4.7z"/>'
   };
 

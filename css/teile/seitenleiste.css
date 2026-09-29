@@ -2,12 +2,24 @@
 
 /* ------------------------------------------------------------------ Seitenleiste */
 .sidebar {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   background: var(--panel);
   border-right: 1px solid var(--line);
 }
+
+/* Griff am rechten Rand: Breite ziehen, Doppelklick setzt zurück */
+.seiten-griff {
+  position: absolute; top: 0; bottom: 0; right: -4px; width: 8px; z-index: 5;
+  cursor: col-resize;
+}
+.seiten-griff::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px;
+  background: transparent; transition: background .15s;
+}
+.seiten-griff:hover::after, #app.ziehen .seiten-griff::after { background: var(--accent); }
 
 .side-head {
   display: flex; flex-direction: column; align-items: stretch; gap: 10px;
@@ -17,6 +29,17 @@
 .side-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .side-actions > button { flex: none; white-space: nowrap; }
 .side-actions .import-trigger { margin-left: auto; }
+
+/* Umschalter Ortszeit / UTC */
+.zone-btn {
+  height: 26px; padding: 0 9px; margin: 0 2px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--text-2);
+  font-size: 11.5px; font-weight: 600; letter-spacing: .2px;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.zone-btn:hover { color: var(--text); border-color: var(--text-3); }
+.zone-btn.utc { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 
 .search-row {
   position: relative;

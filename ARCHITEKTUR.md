@@ -63,6 +63,8 @@ gebildeten Unterhaltungen, der offene Chat, Suchbegriffe, Treffer.
 | `media.js` | `Media` | Medienordner einlesen, Pfade zuordnen, Dateien liefern |
 | `whatsapp.js` | `WhatsApp` | Android-/iPhone-Textexporte erkennen, Datum und Anhänge lesen, stabile Nachrichten-IDs erzeugen |
 | `aleapp.js` | `Aleapp` | ALEAPP-Berichte (TSV) am Spaltenkopf erkennen und ins eigene Spaltenformat übersetzen, UTC-Zeiten kennzeichnen |
+| `ileapp.js` | `Ileapp` | dasselbe für iLEAPP: SMS/iMessage, WhatsApp, Threema, Signal, Telegram |
+| `geraete-db.js` | `GeraeteDB` | SQL-Exporte mit rohen Spaltennamen erkennen: WhatsApp `ChatStorage.sqlite`/`msgstore.db`, iOS `sms.db`, Android `mmssms.db` |
 | `archive.js` | `Archive` | ZIP lesen (für docx/xlsx/pptx/odf) – ganz ohne Bibliothek |
 | `documents.js` | `Documents` | Dokumente: Vorschau, Textauszug, Hintergrundlauf |
 | `translate.js` | `Translate` | Übersetzung über die Browser-Schnittstelle |
@@ -96,6 +98,8 @@ weder den Zustand noch stößt sie Läufe an.
 | `hilfe.js` | `Hilfe` | Erklärfenster zum CSV-Format, Vorlage speichern |
 | `import.js` | `Import` | CSV einlesen, Ablegen per Maus, Export, Demodaten |
 | `whatsapp-import.js` | `WhatsAppImport` | Chatname/Datumsformat abfragen, ZIP-Exporte lesen und Anhänge bei Bedarf entpacken |
+| `pdf-bericht.js` | `PdfBericht` | Chat als druckfertiger Bericht (Deckblatt, Verlauf, Bilder, Prüfsumme) → Druckdialog „Als PDF speichern" |
+| `spaltenzuordnung.js` | `Spaltenzuordnung` | Dialog „Spalten zuordnen" für fremde CSVs mit Beispielwerten und Zeitprobe; merkt die Antwort je Spaltensatz |
 | `medienordner.js` | `Medienordner` | Ordner verbinden, merken, trennen |
 | `uebersetzen.js` | `Uebersetzen` | 🌐 Knopf, Panel, Chatlauf, Einzelnachricht |
 | `sprachnachrichten.js` | `Sprachnachrichten` | 🎤 Knopf, Panel, Chatlauf, Einzelnachricht |
@@ -137,10 +141,27 @@ deshalb steht `helfer.js` ganz vorn und `app.js` ganz hinten.
 ## Abläufe im Überblick
 
 **Import**
-`Import.importiereDateien` → `CSV.toObjects` → `Aleapp.umsetzen` (nur bei ALEAPP-Berichten) → `Model.buildMapping` →
-`Model.rowToMessage` je Zeile → zusammenführen über `Messenger::nachricht_id`
+`Import.importiereDateien` → `CSV.toObjects` → bekannte Quelle übersetzen
+(`Aleapp.umsetzen`, sonst `Ileapp.umsetzen`, sonst `GeraeteDB.umsetzen`) →
+`Model.buildMapping` (vergleicht Spaltennamen in der Schreibweise von
+`Model.kopfNorm`) → bei fremden Spalten gemerkte Zuordnung oder
+`Spaltenzuordnung.fragen` → `Model.rowToMessage` je Zeile (mit Zeitzone und
+festem Chatnamen aus dem Dialog) → zusammenführen über `Messenger::nachricht_id`
 → `Model.rebuild` → `Import.speichere` (ein IndexedDB-Eintrag je
 Unterhaltung) → `Render.renderAll` → `Dokumentenlauf.alleLesen`.
+
+**Zeiten**
+`Model.parseTimestamp(wert, zone)` liest Text mit oder ohne Zone und Zahlen aus
+Geräte-Datenbanken (Stellenzahl entscheidet: Apple-Sekunden/-Nanosekunden,
+Unix s/ms/µs/ns, WebKit). Zahlen und Werte mit eigener Zone bleiben von der
+Zonenwahl unberührt; ohne Zone gilt die Spalte `zeitzone`, sonst die Wahl im
+Dialog, sonst die Ortszeit. Rohwert und Zone bleiben an der Nachricht
+(`tsRaw`, `tz`) und stehen im Tooltip der Uhrzeit.
+
+Angezeigt wird über `Model.DT_DATE`/`DT_TIME`/`DT_FULL`, `dayLabel`, `relative` und
+`tagSchluessel` – alle folgen der Anzeige-Zone (`Model.setzeAnzeigeZone`, Schalter
+Ortszeit/UTC in der Seitenleiste). Wer irgendwo eine Zeit anzeigt, nimmt diese
+Formate statt eines eigenen `Intl.DateTimeFormat` oder `toDateString()`.
 
 **WhatsApp-Import**
 `Import.importiereDateien` verarbeitet TXT, ZIP und lose Anhänge; parallele Importe
@@ -152,9 +173,11 @@ geben Originalpfade weiter, damit gleichnamige Anhänge verschiedenen Chats zuge
 bleiben. Wiederholungsimporte setzen denselben vom Nutzer vergebenen Chatnamen voraus.
 
 **Tests**
-`node --test tests/whatsapp.test.cjs tests/media.test.cjs` prüft Parser, Datumsvarianten,
-Anhänge, ZIPs, Wiederholungsimporte, GIF-Schleifen, Medienpfade, Ladevorgänge und die
-bestehenden CSV-Beispiele ohne zusätzliche Pakete. `python -B -m unittest discover
+`node --test tests/whatsapp.test.cjs tests/media.test.cjs tests/uebersetzen.test.cjs tests/pdf-bericht.test.cjs` prüft
+Parser, Datumsvarianten, Zeitzonen, Anhänge, ZIPs, Wiederholungsimporte, GIF-Schleifen,
+Medienpfade, Ladevorgänge, ALEAPP/iLEAPP/SQL-Exporte, den Zuordnungsdialog, die
+Übersetzung mit fester und erkannter Ausgangssprache, den Inhalt des PDF-Berichts und die bestehenden CSV-Beispiele
+ohne zusätzliche Pakete. `python -B -m unittest discover
 -s tests -p test_serve.py` prüft die HTTP-Teilabrufe des Python-Servers. Die Datei
 `tests/fixtures/medien-test.csv` dient zur Browserprüfung; die kleinen GIF-/PNG-Dateien
 daneben sind synthetische Testbilder.
@@ -179,8 +202,19 @@ mit Rückruf → `Fortschritt.zeige` → fertige Nachrichten einzeln über
 ## Wo fängt man an, wenn man …
 
 * **… eine Spalte hinzufügen will?** `kern/model.js` (`FIELDS`,
-  `rowToMessage`), dann die Anzeige in `ansicht/chat.js` und den
-  Erklärtext in `index.html` (#helpDialog) und `bedienung/hilfe.js`.
+  `FELD_NAMEN`, `rowToMessage`), bei optionalen Feldern `kern/store.js`
+  (`OPTIONAL`, sonst geht es beim Speichern verloren), dann die Anzeige in
+  `ansicht/chat.js`, die Liste `FELDER` in `bedienung/spaltenzuordnung.js` und
+  den Erklärtext in `index.html` (#helpDialog) und `bedienung/hilfe.js`.
+* **… Anrufe anders darstellen will?** `Model.anruf` (Art, Richtung, Dauer,
+  Ergebnis) liefert die Beschreibung für Sprechblase (`ansicht/chat.js`,
+  `anrufHTML`), Chatliste (`Suchtreffer.vorschauText`) und PDF-Bericht.
+  Anruflisten-Umsetzer tragen `nachricht_typ: 'anruf'`, `dauer`, `video`,
+  `anruf_ergebnis` und dieselbe Chat-Kennung wie die Nachrichten der Quelle.
+* **… einen weiteren Bericht oder eine weitere Datenbanktabelle erkennen will?**
+  Einen Eintrag in `BERICHTE` (`daten/aleapp.js`, `daten/ileapp.js`) bzw.
+  `TABELLEN` (`daten/geraete-db.js`): woran er zu erkennen ist und wie eine
+  Zeile ins eigene Spaltenformat übersetzt wird.
 * **… ein Dateiformat lesbar machen will?** `daten/documents.js`
   (`format`, Auszugsfunktion) – die Suche greift dann von selbst.
 * **… einen neuen Messenger einfärben will?** `daten/messengers.js`.

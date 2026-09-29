@@ -24,6 +24,7 @@
       <div class="side-actions">
         <button id="helpBtn" class="icon-btn" title="Welche Spalten braucht die CSV-Datei?">?</button>
         <button id="themeBtn" class="icon-btn" title="Hell / Dunkel">◐</button>
+        <button id="zoneBtn" class="zone-btn" title="Zeiten in Ortszeit oder UTC anzeigen" aria-pressed="false">Ortszeit</button>
         <button id="exportAll" class="icon-btn" title="Alles als JSON exportieren">⤓</button>
         <button id="clearBtn" class="icon-btn danger" title="Alle Daten löschen">🗑</button>
         <button id="mediaBtn" class="btn" title="Medienordner verbinden (Bilder, Videos, Sprachnachrichten)">🖼</button>
@@ -52,6 +53,8 @@
     </div>
 
     <div id="convList" class="conv-list"></div>
+    <div id="seitenGriff" class="seiten-griff" role="separator" aria-orientation="vertical"
+         title="Breite ziehen · Doppelklick: zurücksetzen"></div>
   </aside>
 
   <!-- ------------------------------------------------ Chat -->
@@ -88,7 +91,7 @@
           <button id="trPanelBtn" class="icon-btn caret" title="Einstellungen für die Übersetzung">▾</button>
         </span>
 
-        <button id="exportChat" class="icon-btn" title="Diesen Chat als Text exportieren">⤓</button>
+        <button id="exportChat" class="icon-btn" title="Diesen Chat als PDF-Bericht ausgeben">⤓</button>
         <button id="detailsToggle" class="icon-btn" title="Details anzeigen">ⓘ</button>
       </div>
 
@@ -99,12 +102,19 @@
           <span id="trBackendInfo" class="tr-info"></span>
         </div>
 
+        <!-- Ausgangssprache gilt je Chat, Zielsprache für alle -->
+        <div class="tr-sprachen">
+          <label class="tr-sprache"><span>Von (dieser Chat)</span><select id="trSource"></select></label>
+          <button id="trSwap" class="icon-btn tr-swap" title="Ausgangs- und Zielsprache tauschen">⇄</button>
+          <label class="tr-sprache"><span>Nach</span><select id="trTarget"></select></label>
+        </div>
+        <p id="trSourceHint" class="tr-sprach-hinweis"></p>
+
         <button id="trRun" class="btn primary tr-run">Diesen Chat übersetzen</button>
         <button id="trCancel" class="btn ghost tr-cancel" hidden>Abbrechen</button>
         <div id="trProgress" class="tr-progress"></div>
 
-        <label class="tr-field"><span>Zielsprache</span><select id="trTarget"></select></label>
-        <label class="tr-check"><input type="checkbox" id="trSkipTarget"> Nachrichten in der Zielsprache überspringen</label>
+        <label class="tr-check"><input type="checkbox" id="trSkipTarget"> Nachrichten, die schon in der Zielsprache sind, überspringen</label>
 
         <button id="trClearConv" class="btn ghost tr-clear">Übersetzungen dieses Chats löschen</button>
         <p class="tr-note">Übersetzt wird mit der eingebauten Übersetzung von Chrome/Edge –
@@ -152,7 +162,8 @@
       <button class="job-cancel" type="button">Abbrechen</button>
     </div>
 
-    <div id="chatScroll" class="chat-scroll">
+    <!-- tabindex: damit Bild↑/↓ und Pfeiltasten den Verlauf scrollen -->
+    <div id="chatScroll" class="chat-scroll" tabindex="-1">
       <div id="chatMessages" class="chat-messages"></div>
     </div>
 
@@ -214,6 +225,83 @@
     </form>
   </dialog>
 
+  <!-- ------------------------------------------------ Spalten zuordnen (fremde CSV, SQL-Export) -->
+  <dialog id="mappingDialog" class="wa-import-dialog map-dialog" aria-labelledby="mapTitel">
+    <form method="dialog">
+      <h2 id="mapTitel">Spalten zuordnen</h2>
+      <p id="mapDatei" class="wa-import-hint"></p>
+      <p class="wa-import-hint">Die Datei hat Spalten, die ChatVisualizer nicht von selbst kennt – etwa aus einem
+        SQL-Export. Bitte prüfen, was wohin gehört; vorausgewählt ist, was erkannt wurde. Rechts stehen die ersten Werte.</p>
+      <div class="map-tabelle">
+        <table>
+          <thead><tr><th>Feld</th><th>Spalte in der Datei</th><th>Beispielwerte</th></tr></thead>
+          <tbody id="mapFelder"></tbody>
+        </table>
+      </div>
+      <p id="mapUebrig" class="wa-import-hint"></p>
+
+      <div class="map-optionen">
+        <div>
+          <label for="mapZone">Zeiten ohne Zonenangabe sind</label>
+          <select id="mapZone">
+            <option id="mapZoneOrt" value="">Ortszeit dieses Rechners</option>
+            <option value="UTC">UTC (so schreiben ALEAPP, iLEAPP und SQLite-datetime())</option>
+            <option value="Europe/Berlin">Europe/Berlin (MEZ/MESZ)</option>
+            <option value="andere">andere Zone …</option>
+          </select>
+          <input id="mapZoneFrei" placeholder="z. B. +03:00 oder Europe/Moscow" autocomplete="off" hidden>
+        </div>
+        <div>
+          <label for="mapFesterChat">Ohne Chatspalte: alle Zeilen in diesen Chat</label>
+          <input id="mapFesterChat" placeholder="z. B. Chat mit +49 170 …" autocomplete="off">
+        </div>
+        <div>
+          <label for="mapMessenger">Messenger, falls keine Spalte</label>
+          <input id="mapMessenger" placeholder="z. B. WhatsApp" autocomplete="off">
+        </div>
+      </div>
+      <p id="mapZeitprobe" class="map-zeitprobe"></p>
+      <label class="map-merken"><input id="mapMerken" type="checkbox" checked> Für Dateien mit denselben Spalten merken</label>
+      <p id="mapFehler" class="map-fehler" role="alert"></p>
+      <footer>
+        <button class="btn" value="cancel" formnovalidate>Überspringen</button>
+        <button id="mapImport" class="btn primary" value="import">Importieren</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ------------------------------------------------ Chat als PDF-Bericht -->
+  <dialog id="pdfDialog" class="wa-import-dialog pdf-dialog" aria-labelledby="pdfTitel">
+    <form method="dialog">
+      <h2 id="pdfTitel">Chat als PDF ausgeben</h2>
+      <p id="pdfChat" class="wa-import-hint"></p>
+
+      <div class="pdf-zeitraum">
+        <div><label for="pdfVon">Von</label><input id="pdfVon" type="date"></div>
+        <div><label for="pdfBis">Bis</label><input id="pdfBis" type="date"></div>
+      </div>
+
+      <label for="pdfVermerk">Aktenzeichen / Vermerk (optional)</label>
+      <input id="pdfVermerk" maxlength="200" autocomplete="off" placeholder="steht auf dem Deckblatt und oben auf jeder Seite">
+
+      <div class="pdf-optionen">
+        <label><input id="pdfBilder" type="checkbox"> Bilder einbetten</label>
+        <label><input id="pdfUebersetzung" type="checkbox"> Übersetzungen (gekennzeichnet, nach dem Original)</label>
+        <label><input id="pdfTranskript" type="checkbox"> Transkripte der Sprachnachrichten</label>
+        <label><input id="pdfTechnik" type="checkbox"> Technische Angaben je Nachricht (ID, Rohwert der Zeit, Quelle)</label>
+        <label id="pdfTrefferZeile"><input id="pdfTreffer" type="checkbox"> Nur Nachrichten mit „<span id="pdfTrefferText"></span>“</label>
+      </div>
+
+      <p id="pdfInfo" class="wa-import-hint"></p>
+      <p class="wa-import-hint">Im Druckdialog als Ziel <b>„Als PDF speichern“</b> wählen. Für saubere Seiten
+        dort „Kopf- und Fußzeilen“ ausschalten und „Hintergrundgrafiken“ einschalten.</p>
+      <footer>
+        <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
+        <button id="pdfStart" class="btn primary" value="pdf">PDF erstellen</button>
+      </footer>
+    </form>
+  </dialog>
+
   <!-- ------------------------------------------------ Hilfe zum CSV-Format -->
   <div id="helpDialog" class="modal">
     <div class="modal-card" role="dialog" aria-labelledby="helpTitel">
@@ -251,8 +339,13 @@
               <td><code>Mama</code></td>
             </tr>
             <tr>
+              <td><code>absender_name</code></td>
+              <td>Anzeigename zur Kennung, etwa wenn <code>absender_id</code> eine Telefonnummer oder JID ist. Angezeigt wird der Name, die Kennung steht im Tooltip der Uhrzeit.</td>
+              <td><code>Mama</code></td>
+            </tr>
+            <tr>
               <td><code>von_mir</code></td>
-              <td><code>1</code> für eigene Nachrichten: sie stehen rechts. Ohne die Spalte gilt, wer in den meisten Chats schreibt, oder die Auswahl unter „Ich:“.</td>
+              <td><code>1</code> für eigene Nachrichten: sie stehen rechts. Versteht auch <code>ja</code>, <code>true</code> und <code>Outgoing</code>. Ohne die Spalte gilt, wer in den meisten Chats schreibt, oder die Auswahl unter „Ich:“.</td>
               <td><code>1</code></td>
             </tr>
             <tr>
@@ -262,8 +355,13 @@
             </tr>
             <tr>
               <td><code>zeitstempel</code></td>
-              <td>Wann die Nachricht geschickt wurde. Ohne Angabe landen die Nachrichten in der Reihenfolge der Datei.</td>
+              <td>Wann die Nachricht geschickt wurde. Ohne Angabe landen die Nachrichten in der Reihenfolge der Datei. Stehen Datum und Uhrzeit getrennt, gehen auch die Spalten <code>datum</code> und <code>uhrzeit</code>.</td>
               <td><code>2026-08-30T18:12:04</code></td>
+            </tr>
+            <tr>
+              <td><code>zeitzone</code></td>
+              <td>Zone der Zeitangabe je Zeile: <code>UTC</code>, <code>+02:00</code> oder <code>Europe/Berlin</code>. Ohne Spalte gilt, was beim Import gewählt wurde, sonst die Ortszeit dieses Rechners. Zahlen (Unix-, Apple-Zeit) haben keine Zone und bleiben unberührt.</td>
+              <td><code>UTC</code></td>
             </tr>
             <tr>
               <td><code>nachrichteninhalt</code></td>
@@ -296,6 +394,21 @@
               <td><code>gelesen</code></td>
             </tr>
             <tr>
+              <td><code>geloescht</code></td>
+              <td><code>1</code> für gelöschte oder wiederhergestellte Nachrichten. Ist noch Text vorhanden, bleibt er sichtbar und wird als gelöscht markiert.</td>
+              <td><code>1</code></td>
+            </tr>
+            <tr>
+              <td><code>dauer</code></td>
+              <td>Nur bei Anrufen (<code>nachricht_typ</code> = <code>anruf</code> oder <code>Videoanruf</code>): Gesprächsdauer in Sekunden oder als <code>h:mm:ss</code>. Dazu optional <code>video</code> (<code>1</code>) und <code>anruf_ergebnis</code> (<code>verpasst</code>, <code>abgelehnt</code>, <code>angenommen</code> …). Anrufe erscheinen als eigene Karte im Chat.</td>
+              <td><code>0:03:25</code></td>
+            </tr>
+            <tr>
+              <td><code>quelle</code></td>
+              <td>Herkunft der Zeile: Datenbank, Tabelle, Zeilennummer. Steht im Tooltip der Uhrzeit, damit jede Nachricht zurückverfolgt werden kann.</td>
+              <td><code>msgstore.db, _id 4711</code></td>
+            </tr>
+            <tr>
               <td><code>messenger</code></td>
               <td>Aus welcher App die Nachricht stammt – bestimmt Logo und Farbe. Fehlt die Spalte, wird der Dateiname genommen.</td>
               <td><code>WhatsApp</code></td>
@@ -307,8 +420,11 @@
         <ul class="modal-liste">
           <li><b>Trennzeichen</b> wird automatisch erkannt: Komma, Semikolon, Tabulator oder senkrechter Strich.</li>
           <li><b>Zeichensatz</b> UTF-8 (mit oder ohne BOM). Anführungszeichen nach RFC 4180, Zeilenumbrüche innerhalb von Feldern sind erlaubt.</li>
-          <li><b>Zeitformat</b> frei wählbar: <code>2026-08-30T18:12:04</code>, <code>30.08.2026 18:12</code> oder Unix-Zeit in Sekunden bzw. Millisekunden. Neunstellige Zahlen wie <code>811805666.05</code> gelten als Apple-Zeit (Sekunden seit 1.1.2001, so speichern iPhone-Datenbanken) und werden selbst umgerechnet.</li>
-          <li><b>Englische Spaltennamen</b> gehen auch: <code>message_id</code>, <code>timestamp</code>, <code>sender_id</code>, <code>conversation_id</code>, <code>content</code>, <code>message_type</code>, <code>media_path</code>, <code>reply_to_id</code>, <code>reaction_to_id</code>, <code>status</code>, <code>platform</code>, <code>chat_name</code>, <code>from_me</code>.</li>
+          <li><b>Zeitformat</b> frei wählbar: <code>2026-08-30T18:12:04</code>, <code>30.08.2026 18:12</code>, mit Zone am Ende (<code>…Z</code>, <code>… UTC</code>, <code>…+02:00</code>) oder als Zahl, wie sie in den Datenbanken der Geräte steht. Die Stellenzahl entscheidet: 9 = Apple-Sekunden (seit 1.1.2001, iPhone), 10 = Unix-Sekunden, 13 = Unix-Millisekunden (Android), 16 = Unix-Mikrosekunden, 17 = WebKit/Chrome, 18 = Apple-Nanosekunden (iOS <code>sms.db</code>), 19 = Unix-Nanosekunden.</li>
+          <li><b>Englische Spaltennamen</b> gehen auch: <code>message_id</code>, <code>timestamp</code>, <code>sender_id</code>, <code>sender_name</code>, <code>conversation_id</code>, <code>content</code>, <code>message_type</code>, <code>media_path</code>, <code>reply_to_id</code>, <code>reaction_to_id</code>, <code>status</code>, <code>deleted</code>, <code>source</code>, <code>platform</code>, <code>chat_name</code>, <code>from_me</code>. Groß-/Kleinschreibung, Leerzeichen und Bindestriche spielen keine Rolle (<code>Message ID</code> = <code>message_id</code>).</li>
+          <li><b>ALEAPP und iLEAPP</b>: die TSV-Dateien aus <code>_TSV Exports</code> einfach importieren oder den ganzen Berichtsordner ablegen. Erkannt werden WhatsApp, SMS/MMS, Google Messages, iMessage, Threema, Signal und Telegram; Zeiten gelten dort als UTC.</li>
+          <li><b>SQL-Exporte aus Geräte-Datenbanken</b> mit den Original-Spaltennamen werden erkannt: WhatsApp <code>ChatStorage.sqlite</code> (ZWAMESSAGE) und <code>msgstore.db</code> (<code>message</code> und altes <code>messages</code>), iOS <code>sms.db</code> (<code>message</code>) und Android <code>mmssms.db</code> (<code>sms</code>). Spalten aus einem JOIN (Chat-JID, Partnername, Anhangspfad) werden mitgenommen.</li>
+          <li><b>Alles andere</b>: Hat eine Datei unbekannte Spalten, fragt der Import einmal nach, was wohin gehört, zeigt Beispielwerte und eine Zeitprobe und merkt sich die Antwort für Dateien mit denselben Spalten.</li>
           <li><b>Mehrere Dateien</b> lassen sich zusammen importieren; dieselbe Datei zweimal zu importieren erzeugt keine Doppelten, sondern aktualisiert die Nachrichten (Schlüssel: Messenger + <code>nachricht_id</code>, ohne ID der Inhalt).</li>
           <li><b>Ja/nein-Spalten</b> wie <code>von_mir</code> verstehen <code>1</code>, <code>true</code>, <code>ja</code> und <code>x</code>.</li>
         </ul>
@@ -329,6 +445,7 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 
       <footer class="modal-foot">
         <button id="helpTemplate" class="btn">Vorlage als CSV speichern</button>
+        <button id="mapVergessen" class="btn ghost" hidden></button>
         <button class="btn primary import-trigger" data-help-close>Chat-Dateien auswählen</button>
       </footer>
     </div>
@@ -371,6 +488,8 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 <script src="js/daten/archive.js"></script>
 <script src="js/daten/whatsapp.js"></script>
 <script src="js/daten/aleapp.js"></script>
+<script src="js/daten/ileapp.js"></script>
+<script src="js/daten/geraete-db.js"></script>
 <script src="js/daten/documents.js"></script>
 <script src="js/daten/transcribe.js"></script>
 <script src="js/daten/translate.js"></script>
@@ -390,6 +509,8 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 <script src="js/bedienung/hilfe.js"></script>
 <script src="js/bedienung/dokumente.js"></script>
 <script src="js/bedienung/whatsapp-import.js"></script>
+<script src="js/bedienung/spaltenzuordnung.js"></script>
+<script src="js/bedienung/pdf-bericht.js"></script>
 <script src="js/bedienung/import.js"></script>
 <script src="js/bedienung/medienordner.js"></script>
 <script src="js/bedienung/uebersetzen.js"></script>

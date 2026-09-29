@@ -92,6 +92,81 @@
       }
     },
     {
+      // Anrufe landen im selben Chat wie die Nachrichten: dieselbe Kennung wie bei
+      // „One To One" (Name bzw. JID des Partners) bzw. „Group Messages" (Gruppenname).
+      // ALEAPP nennt bei ausgehenden Einzelanrufen den Angerufenen nicht („Self") –
+      // diese Anrufe sammelt ein eigener Chat, statt sie jemandem falsch zuzuordnen.
+      name: 'WhatsApp - Call Logs',
+      erkennt: h => h.has('call start timestamp') && h.has('call direction') && h.has('caller'),
+      zeile: r => {
+        const aus = String(r['call direction'] || '').trim().toLowerCase() === 'outgoing';
+        const gruppe = r['group name'] || '';
+        const partner = aus ? '' : (r['caller'] || r['caller jid'] || '');
+        return {
+          messenger: 'WhatsApp',
+          unterhaltungs_id: gruppe ? 'Gruppe ' + gruppe : partner ? 'Einzelchat ' + partner : 'WhatsApp-Anrufe ausgehend',
+          chatname: gruppe || partner || 'Ausgehende WhatsApp-Anrufe (Gesprächspartner nicht im Bericht)',
+          absender_id: partner,
+          von_mir: aus ? '1' : '0',
+          zeitstempel: utc(r['call start timestamp']),
+          nachricht_typ: 'anruf',
+          nachrichteninhalt: '',
+          dauer: r['call duration'] || '',
+          video: /video/i.test(r['call type'] || '') ? '1' : '',
+          quelle: 'msgstore.db, call_log'
+        };
+      }
+    },
+    {
+      // Telefon-Anrufliste (calllog.db). Die Spalte „Type" enthält bei ALEAPP ein Symbol als HTML.
+      name: 'Call logs',
+      erkennt: h => h.has('call date') && h.has('partner') && h.has('duration in secs'),
+      zeile: r => {
+        const art = String(r['type'] || '').replace(/<[^>]*>/g, '').trim();
+        const aus = /^outgoing$/i.test(art);
+        const nummer = r['partner'] || '(unbekannte Nummer)';
+        return {
+          messenger: 'Telefon',
+          unterhaltungs_id: nummer,
+          chatname: nummer,
+          absender_id: aus ? '' : nummer,
+          von_mir: aus ? '1' : '0',
+          zeitstempel: utc(r['call date']),
+          nachricht_typ: 'anruf',
+          nachrichteninhalt: String(r['transcription'] || '').trim(),   // Mailbox-Transkription
+          dauer: r['duration in secs'] || '',
+          anruf_ergebnis: /^(incoming|outgoing)$/i.test(art) ? '' : art,
+          geloescht: r['deleted'] === '1' ? '1' : '',
+          quelle: 'calllog.db'
+        };
+      }
+    },
+    {
+      // Ältere/Samsung-Anrufliste (contacts2.db, logs.db): Dauer = Ende − Beginn
+      name: 'Call Logs (contacts2.db)',
+      erkennt: h => h.has('from_id') && h.has('to_id') && h.has('start_date') && h.has('call_type'),
+      zeile: r => {
+        const aus = /^outgoing$/i.test(String(r['direction'] || '').trim());
+        const nummer = r['number'] || '(unbekannte Nummer)';
+        const dauer = (Date.parse(utc(r['end_date'])) - Date.parse(utc(r['start_date']))) / 1000;
+        const art = String(r['call_type'] || '').trim();
+        return {
+          messenger: 'Telefon',
+          unterhaltungs_id: nummer,
+          chatname: r['name'] || nummer,
+          absender_id: aus ? '' : nummer,
+          absender_name: aus ? '' : (r['name'] || ''),
+          von_mir: aus ? '1' : '0',
+          zeitstempel: utc(r['start_date']),
+          nachricht_typ: 'anruf',
+          nachrichteninhalt: '',
+          dauer: isFinite(dauer) && dauer >= 0 ? String(Math.round(dauer)) : '',
+          anruf_ergebnis: /^(incoming|outgoing)$/i.test(art) ? '' : art,
+          quelle: 'contacts2.db, calls'
+        };
+      }
+    },
+    {
       // Altes WhatsApp-Schema (Tabelle „messages"): „Message ID" ist dort die Chat-JID
       name: 'WhatsApp - Messages',
       erkennt: h => h.has('recipients') && h.has('group sender') && h.has('direction'),
