@@ -89,15 +89,19 @@
   /** Reaktionen als kleine Emoji-Marken, gleiche Emoji zusammengefasst. */
   function reaktionenHTML(m) {
     if (!m.reactions || !m.reactions.length) return '';
-    const anzahl = new Map();
+    // Kurznamen wie „(purple_heart)" als Emoji zeigen; der Rohwert steht im Tooltip
+    const anzahl = new Map(), roh = new Map();
     for (const r of m.reactions) {
-      const e = (r.text || '❤️').trim() || '❤️';
+      const e = Emoji.reaktion(r.text);
       if (!anzahl.has(e)) anzahl.set(e, []);
       anzahl.get(e).push(M.absenderName(r));
+      const t = String(r.text || '').trim();
+      if (t && t !== e) roh.set(e, t);
     }
     let html = '<div class="reactions">';
     for (const [e, absender] of anzahl) {
-      html += '<span class="reaction" title="' + esc(absender.join(', ')) + '">' + esc(e) +
+      const titel = absender.join(', ') + (roh.has(e) ? ' · ' + roh.get(e) : '');
+      html += '<span class="reaction" title="' + esc(titel) + '">' + esc(e) +
         (absender.length > 1 ? '<b>' + absender.length + '</b>' : '') + '</span>';
     }
     return html + '</div>';
@@ -143,6 +147,11 @@
         '<div class="orig"><span class="orig-label">' +
           (transkript && !m.text ? '🎤 ' : '') + esc(quellName) + '</span>' +
         formatiere(quelle, q) + '</div>';
+    } else if (m.reactionTo) {
+      // Reaktion ohne auffindbare Zielnachricht: als eigene Blase, mit Hinweis
+      const e = Emoji.reaktion(m.text);
+      koerper = '<div class="text big-emoji" title="' + esc(m.text || '') + '">' + esc(e) + '</div>' +
+        '<div class="orig">Reaktion auf eine Nachricht, die nicht im Export ist (' + esc(m.reactionTo) + ')</div>';
     } else if (m.text) {
       koerper = '<div class="text' + (nurEmoji ? ' big-emoji' : '') + '">' + formatiere(m.text, q) + '</div>';
     } else if (transkript) {

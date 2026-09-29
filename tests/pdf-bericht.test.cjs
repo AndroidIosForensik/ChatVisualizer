@@ -18,7 +18,8 @@ function environment() {
     }
   });
   ctx.window = ctx;
-  for (const file of ['kern/helfer', 'kern/model', 'daten/messengers', 'daten/media', 'daten/translate',
+  for (const file of ['kern/helfer', 'kern/model', 'daten/messengers', 'daten/emoji-namen', 'daten/emoji',
+    'daten/media', 'daten/translate',
     'ansicht/text', 'ansicht/suche', 'bedienung/pdf-bericht']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', file + '.js'), 'utf8'), ctx);
   }

@@ -34,6 +34,7 @@ beispiel-daten/       CSV-Dateien und Medien zum Ausprobieren
 modelle/quellen.json  Bauplan: welche Modelldateien wohin gehören
 modelle/              Whisper-Modell, wird beim ersten Start geladen
 hole-modell.py        lädt fehlende Modelldateien nach (von start.sh aufgerufen)
+werkzeuge/            Hilfsskripte für Entwickler (z. B. Emoji-Tabelle neu erzeugen)
 vendor/               PDF.js und transformers.js, unverändert übernommen
 ```
 
@@ -62,6 +63,8 @@ gebildeten Unterhaltungen, der offene Chat, Suchbegriffe, Treffer.
 | Datei | Name | Aufgabe |
 |---|---|---|
 | `messengers.js` | `Messengers` | Logos und Farben der Messenger |
+| `emoji.js` | `Emoji` | Reaktionen als Kurzname („(purple_heart)", „:+1::skin-tone-3:", „(like)") in Emoji übersetzen |
+| `emoji-namen.js` | `EmojiNamenDaten` | Tabelle Kurzname → Emoji, erzeugt von `werkzeuge/erzeuge-emoji-namen.py` aus gemoji (MIT) |
 | `media.js` | `Media` | Medienordner einlesen, Pfade zuordnen, Dateien liefern |
 | `whatsapp.js` | `WhatsApp` | Android-/iPhone-Textexporte erkennen, Datum und Anhänge lesen, stabile Nachrichten-IDs erzeugen |
 | `aleapp.js` | `Aleapp` | ALEAPP-Berichte (TSV) am Spaltenkopf erkennen und ins eigene Spaltenformat übersetzen, UTC-Zeiten kennzeichnen |
@@ -175,10 +178,10 @@ geben Originalpfade weiter, damit gleichnamige Anhänge verschiedenen Chats zuge
 bleiben. Wiederholungsimporte setzen denselben vom Nutzer vergebenen Chatnamen voraus.
 
 **Tests**
-`node --test tests/whatsapp.test.cjs tests/media.test.cjs tests/uebersetzen.test.cjs tests/pdf-bericht.test.cjs` prüft
+`node --test tests/*.test.cjs` prüft
 Parser, Datumsvarianten, Zeitzonen, Anhänge, ZIPs, Wiederholungsimporte, GIF-Schleifen,
 Medienpfade, Ladevorgänge, ALEAPP/iLEAPP/SQL-Exporte, den Zuordnungsdialog, die
-Übersetzung mit fester und erkannter Ausgangssprache, den Inhalt des PDF-Berichts und die bestehenden CSV-Beispiele
+Übersetzung mit fester und erkannter Ausgangssprache, den Inhalt des PDF-Berichts, Emoji-Kurznamen und die bestehenden CSV-Beispiele
 ohne zusätzliche Pakete. `python -B -m unittest discover
 -s tests -p test_serve.py` prüft die HTTP-Teilabrufe des Python-Servers. Die Datei
 `tests/fixtures/medien-test.csv` dient zur Browserprüfung; die kleinen GIF-/PNG-Dateien

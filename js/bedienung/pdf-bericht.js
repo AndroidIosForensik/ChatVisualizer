@@ -216,8 +216,11 @@
     }
 
     if (m.reactions && m.reactions.length) {
-      html += '<div class="reakt">' + m.reactions.map(r =>
-        esc((r.text || '❤️').trim()) + ' ' + esc(M.absenderName(r))).join(' · ') + '</div>';
+      html += '<div class="reakt">' + m.reactions.map(r => {
+        const e = Emoji.reaktion(r.text), t = String(r.text || '').trim();
+        // Mit technischen Angaben steht der Rohwert („(purple_heart)") dabei
+        return esc(e) + ' ' + esc(M.absenderName(r)) + (k.opt.technik && t && t !== e ? ' (' + esc(t) + ')' : '');
+      }).join(' · ') + '</div>';
     }
 
     const fuss = [];

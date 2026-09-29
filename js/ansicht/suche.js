@@ -78,6 +78,7 @@
   /** Einzeilige Zusammenfassung einer Nachricht (Chatliste, Antwortzitat). */
   function vorschauText(m) {
     if (!m) return 'Keine Nachrichten';
+    if (m.reactionTo && window.Emoji) return 'Reaktion ' + Emoji.reaktion(m.text);
     if (m.type === 'anruf') {
       const a = Model.anruf(m);
       return (m.video ? '🎥 ' : '📞 ') + a.art + ' ' + a.richtung + (a.info ? ' · ' + a.info : '');
