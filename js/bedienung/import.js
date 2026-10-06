@@ -81,6 +81,8 @@
     const probleme = [];
     const eingang = [];
     const kandidaten = [];
+    const bericht = [];      // erkannte ALEAPP-Tabellen
+    const tabellen = [];     // übrige CSV/TSV, nach dem Bericht verarbeitet
     const chatDateien = new Set();
     let medienGeaendert = false;
 
@@ -113,54 +115,81 @@
           }
           continue;
         }
-        let { header, data } = CSV.toObjects(text);
-        const aleapp = Aleapp.umsetzen(header, data);
-        if (aleapp) ({ header, data } = aleapp);
-        const { map, missingRequired, missing } = M.buildMapping(header);
-
-        if (missingRequired.length) {
-          // Beliebige Textanhänge eines Exportordners sind keine Chatdateien,
-          // ebenso die übrigen Tabellen eines ALEAPP-Berichts (Browser, WLAN …).
-          if ((/\.txt$/i.test(datei.name) || Aleapp.istBericht(header, kandidat.path)) &&
-            (options.fromFolder || files.length > 1)) continue;
-          // Die erwarteten Spaltennamen zeigen, nicht die internen Feldnamen
-          probleme.push('<b>' + esc(datei.name) + '</b>: Pflichtspalten fehlen (' +
-            esc(missingRequired.map(spaltenName).join(', ')) +
-            ') – übersprungen. <button class="toast-link help-open">Welche Spalten braucht es?</button>');
-          uebersprungen += data.length;
+        const { header, data } = CSV.toObjects(text);
+        const erkannt = Aleapp.erkenne(header);
+        if (erkannt) {
+          // Teil eines ALEAPP-Berichts: erst sammeln, dann je App gemeinsam auswerten
+          bericht.push(Object.assign({ name: datei.name, data }, erkannt));
+          chatDateien.add(datei);
           continue;
         }
-        chatDateien.add(datei);
-        if (missing.length) {
-          probleme.push('<b>' + esc(datei.name) + '</b>: empfohlene Spalten fehlen (' +
-            esc(missing.map(spaltenName).join(', ')) + ')');
-        }
-
-        // Fehlt die Messenger-Spalte, muss der Dateiname herhalten
-        const ersatzName = datei.name
-          .replace(/\.(csv|txt|tsv)$/i, '')
-          .replace(/[_\-.]?(export|chat|chats|messages|nachrichten|\d+)/gi, '').trim();
-
-        const vorkommen = new Map();
-        for (let zeile = 0; zeile < data.length; zeile++) {
-          const m = M.rowToMessage(data[zeile], map, ersatzName, lauf++);
-          // Völlig leere Zeilen (kein Text, kein Medium, keine Reaktion) überspringen
-          if (!m.text && !m.media && !m.reactionTo && m.type === 'text') { uebersprungen++; continue; }
-          m.sourceOrder = zeile;   // gleiche Zeitstempel behalten die Reihenfolge der Datei
-          if (!map.id) {
-            // Ohne ID-Spalte: stabile ID aus dem Inhalt, damit ein erneuter
-            // Import aktualisiert statt zu verdoppeln.
-            const signatur = WhatsApp.fingerprint(JSON.stringify([m.conv, m.tsRaw, m.sender, m.text, m.media, m.reactionTo]));
-            const n = (vorkommen.get(signatur) || 0) + 1;
-            vorkommen.set(signatur, n);
-            m.id = 'auto-' + signatur + '-' + n;
-            m.key = m.messenger + '::' + m.id;
-          }
-          eingang.push(m);
-        }
+        tabellen.push({ datei, pfad: kandidat.path, header, data });
       } catch (e) {
         probleme.push('<b>' + esc(datei.name) + '</b>: ' + esc(e.message || 'Lesefehler'));
       }
+    }
+
+    /* Zeilen einer Tabelle (eigene CSV oder zusammengeführter Bericht) übernehmen */
+    function zeilenUebernehmen(header, data, ersatzName, map) {
+      map = map || M.buildMapping(header).map;
+      const vorkommen = new Map();
+      for (let zeile = 0; zeile < data.length; zeile++) {
+        const m = M.rowToMessage(data[zeile], map, ersatzName, lauf++);
+        // Völlig leere Zeilen (kein Text, kein Medium, keine Reaktion) überspringen
+        if (!m.text && !m.media && !m.reactionTo && m.type === 'text') { uebersprungen++; continue; }
+        m.sourceOrder = zeile;   // gleiche Zeitstempel behalten die Reihenfolge der Datei
+        if (!map.id || !String(data[zeile][map.id] || '').trim()) {
+          // Ohne ID: stabile ID aus dem Inhalt, damit ein erneuter
+          // Import aktualisiert statt zu verdoppeln.
+          const signatur = WhatsApp.fingerprint(JSON.stringify([m.conv, m.tsRaw, m.sender, m.text, m.media, m.reactionTo]));
+          const n = (vorkommen.get(signatur) || 0) + 1;
+          vorkommen.set(signatur, n);
+          m.id = 'auto-' + signatur + '-' + n;
+          m.key = m.messenger + '::' + m.id;
+        }
+        eingang.push(m);
+      }
+    }
+
+    // ALEAPP: alle Tabellen einer App zusammen – Namen, Anhänge, Anrufe, Lesebestätigungen
+    const berichtsApps = [];
+    for (const satz of Aleapp.kombiniere(bericht)) {
+      const vorher = eingang.length;
+      zeilenUebernehmen(satz.header, satz.data, satz.app);
+      const eintrag = berichtsApps.find(b => b.app === satz.app);
+      const abgeglichen = satz.abgeglichen ? { mit: satz.doppeltMit, anzahl: satz.abgeglichen } : null;
+      if (eintrag) { eintrag.tabellen += satz.dateien.length; eintrag.nachrichten += eingang.length - vorher; }
+      else berichtsApps.push({ app: satz.app, tabellen: satz.dateien.length, nachrichten: eingang.length - vorher, abgeglichen });
+    }
+
+    let uebergangen = 0;
+    for (const t of tabellen) {
+      const { map, missingRequired, missing } = M.buildMapping(t.header);
+      if (missingRequired.length) {
+        // Aus einem Bericht oder Exportordner: Tabellen ohne Chats (Browser, WLAN,
+        // Konten …) und beliebige Textanhänge still übergehen.
+        const ausBericht = bericht.length > 0 || Aleapp.istBericht(t.header, t.pfad);
+        if ((/\.txt$/i.test(t.datei.name) || ausBericht) && (options.fromFolder || files.length > 1)) {
+          if (ausBericht) uebergangen++;
+          continue;
+        }
+        // Die erwarteten Spaltennamen zeigen, nicht die internen Feldnamen
+        probleme.push('<b>' + esc(t.datei.name) + '</b>: Pflichtspalten fehlen (' +
+          esc(missingRequired.map(spaltenName).join(', ')) +
+          ') – übersprungen. <button class="toast-link help-open">Welche Spalten braucht es?</button>');
+        uebersprungen += t.data.length;
+        continue;
+      }
+      chatDateien.add(t.datei);
+      if (missing.length) {
+        probleme.push('<b>' + esc(t.datei.name) + '</b>: empfohlene Spalten fehlen (' +
+          esc(missing.map(spaltenName).join(', ')) + ')');
+      }
+      // Fehlt die Messenger-Spalte, muss der Dateiname herhalten
+      const ersatzName = t.datei.name
+        .replace(/\.(csv|txt|tsv)$/i, '')
+        .replace(/[_\-.]?(export|chat|chats|messages|nachrichten|\d+)/gi, '').trim();
+      zeilenUebernehmen(t.header, t.data, ersatzName, map);
     }
 
     const anhaenge = files.filter(f => !chatDateien.has(f) && !/\.(csv|tsv|zip)$/i.test(f.name));
@@ -202,6 +231,14 @@
     let text = '<b>' + neu + '</b> neue Nachrichten importiert';
     if (aktualisiert) text += ', ' + aktualisiert + ' aktualisiert';
     if (uebersprungen) text += ', ' + uebersprungen + ' übersprungen';
+    if (berichtsApps.length) {
+      text += '<br><span class="toast-note">ALEAPP-Bericht zusammengeführt: ' + berichtsApps.map(b =>
+        '<b>' + esc(b.app) + '</b> (' + b.tabellen + (b.tabellen === 1 ? ' Tabelle' : ' Tabellen') +
+        (b.nachrichten ? ', ' + b.nachrichten + ' Einträge' : '') +
+        (b.abgeglichen ? ', ' + b.abgeglichen.anzahl + ' schon in ' + esc(b.abgeglichen.mit) + ' enthalten' : '') +
+        (!b.nachrichten && !b.abgeglichen ? ', keine Nachrichten enthalten' : '') + ')').join(', ') +
+        (uebergangen ? ' · ' + uebergangen + ' weitere Tabellen ohne Chats übergangen' : '') + '</span>';
+    }
     if (probleme.length) text += '<br><span class="toast-note">' + probleme.slice(0, 4).join('<br>') + '</span>';
     Meldung.zeige(text, probleme.length ? 'warn' : 'ok');
 

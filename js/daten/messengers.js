@@ -20,6 +20,12 @@
     wechat:    { label: 'WeChat',    color: '#07C160', glyph: 'bubble-dots'  },
     email:     { label: 'E-Mail',    color: '#C4544B', glyph: 'envelope'     },
     matrix:    { label: 'Matrix',    color: '#0DBD8B', glyph: 'hash'         },
+    googlemessages: { label: 'Google Messages', color: '#1A73E8', glyph: 'bubble' },
+    lineapp:   { label: 'LINE',      color: '#06C755', glyph: 'bubble'       },
+    skype:     { label: 'Skype',     color: '#00AFF0', glyph: 'bubble'       },
+    kikmessenger: { label: 'Kik',    color: '#5BB12F', glyph: 'bubble'       },
+    tiktok:    { label: 'TikTok',    color: '#FE2C55', glyph: 'bubble'       },
+    tinder:    { label: 'Tinder',    color: '#FD5068', glyph: 'bubble'       },
     unknown:   { label: 'Unbekannt', color: '#8A93A6', glyph: 'bubble'       }
   };
 
@@ -31,7 +37,9 @@
     'mms': 'sms', 'text': 'sms',
     'ms teams': 'teams', 'microsoft teams': 'teams',
     'mail': 'email', 'e-mail': 'email', 'gmail': 'email', 'outlook': 'email',
-    'snap': 'snapchat', 'tg': 'telegram'
+    'snap': 'snapchat', 'tg': 'telegram',
+    // kurze Namen nur als ganzes Wort: „line“ steckt sonst in „offline“
+    'google messages': 'googlemessages', 'line': 'lineapp', 'kik': 'kikmessenger'
   };
 
   function normalize(raw) {

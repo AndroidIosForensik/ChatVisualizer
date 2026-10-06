@@ -25,7 +25,7 @@ function environment() {
   });
   ctx.window = ctx;
   for (const file of ['kern/helfer', 'kern/csv', 'kern/model', 'daten/messengers', 'daten/media',
-    'daten/archive', 'daten/whatsapp', 'daten/aleapp', 'bedienung/whatsapp-import', 'bedienung/import']) {
+    'daten/archive', 'daten/whatsapp', 'daten/aleapp', 'daten/aleapp-whatsapp', 'daten/aleapp-apps', 'bedienung/whatsapp-import', 'bedienung/import']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', file + '.js'), 'utf8'), ctx);
   }
   ctx.Helfer.leseTextdatei = file => file.text();
@@ -250,27 +250,27 @@ const plain = value => JSON.parse(JSON.stringify(value));
 test('Kurze CSV: Chatname, von_mir, Typ aus Endung, stabile IDs ohne ID-Spalte', async () => {
   const { ctx } = environment();
   const csv = 'chatname;absender_id;von_mir;zeitstempel;nachrichteninhalt;medienpfad\n' +
-    'Elite;Anna;0;1780066794508;Hallo zusammen;\n' +
-    'Elite;+49 170 123;1;1780066800000;Hi!;\n' +
-    'Elite;;1;1780066800000;gleiche Sekunde;\n' +
-    'Marv;;0;1780066900000;;Media/WhatsApp Images/IMG-20260529-WA0000.jpg\n' +
-    'Marv;;0;1780066910000;;Media/WhatsApp Animated Gifs/VID-20260624-WA0000.mp4\n' +
-    'Marv;;0;1780066920000;;Media/WhatsApp Video/VID-20260530-WA0000.mp4\n';
+    'Lauftreff;Anna;0;1767261594508;Hallo zusammen;\n' +
+    'Lauftreff;+49 170 123;1;1767261600000;Hi!;\n' +
+    'Lauftreff;;1;1767261600000;gleiche Sekunde;\n' +
+    'Carl;;0;1767261700000;;Media/WhatsApp Images/IMG-20260101-WA0001.jpg\n' +
+    'Carl;;0;1767261710000;;Media/WhatsApp Animated Gifs/VID-20260101-WA0002.mp4\n' +
+    'Carl;;0;1767261720000;;Media/WhatsApp Video/VID-20260101-WA0003.mp4\n';
   const file = () => new File([csv], 'abfrage-ergebnis.csv');
   await ctx.Import.importiereDateien([file()]);
   const { state } = ctx.Model;
   assert.equal(state.messages.length, 6);
-  const elite = state.conversations.find(c => c.conv === 'Elite');
-  const marv = state.conversations.find(c => c.conv === 'Marv');
-  assert.equal(elite.title, 'Elite');
-  assert.equal(marv.title, 'Marv');
+  const gruppe = state.conversations.find(c => c.conv === 'Lauftreff');
+  const carl = state.conversations.find(c => c.conv === 'Carl');
+  assert.equal(gruppe.title, 'Lauftreff');
+  assert.equal(carl.title, 'Carl');
   // Eigene Nachrichten: mit und ohne Absendername
-  assert.deepEqual(plain(elite.messages.map(m => [m.sender, m.fromMe])),
+  assert.deepEqual(plain(gruppe.messages.map(m => [m.sender, m.fromMe])),
     [['Anna', false], ['+49 170 123', true], ['Ich', true]]);
-  assert.equal(state.me[elite.key], '+49 170 123');
+  assert.equal(state.me[gruppe.key], '+49 170 123');
   // Einzelchat ohne Absender: der Chat selbst ist der Gesprächspartner
-  assert.deepEqual(plain(marv.messages.map(m => [m.sender, m.type])),
-    [['Marv', 'bild'], ['Marv', 'gif'], ['Marv', 'video']]);
+  assert.deepEqual(plain(carl.messages.map(m => [m.sender, m.type])),
+    [['Carl', 'bild'], ['Carl', 'gif'], ['Carl', 'video']]);
   await ctx.Import.importiereDateien([file()]);
   assert.equal(state.messages.length, 6);
 });
@@ -278,11 +278,11 @@ test('Kurze CSV: Chatname, von_mir, Typ aus Endung, stabile IDs ohne ID-Spalte',
 test('Kurze CSV: unterhaltungs_id trennt gleichnamige Chats, ohne Chatspalte wird abgelehnt', async () => {
   const { ctx, messages } = environment();
   await ctx.Import.importiereDateien([new File([
-    'unterhaltungs_id,chatname,nachrichteninhalt\n1@lid,Marv,eins\n2@lid,Marv,zwei\n'], 'whatsapp.csv')]);
+    'unterhaltungs_id,chatname,nachrichteninhalt\n1@lid,Carl,eins\n2@lid,Carl,zwei\n'], 'whatsapp.csv')]);
   const { state } = ctx.Model;
   assert.equal(state.conversations.length, 2);
   assert.deepEqual(plain(state.conversations.map(c => [c.title, c.messenger])),
-    [['Marv', 'whatsapp'], ['Marv', 'whatsapp']]);
+    [['Carl', 'whatsapp'], ['Carl', 'whatsapp']]);
   await ctx.Import.importiereDateien([new File(['absender_id,nachrichteninhalt\nAnna,Hallo\n'], 'ohne-chat.csv')]);
   assert.equal(state.messages.length, 2);
   assert.match(messages.at(-1), /Pflichtspalten fehlen \(unterhaltungs_id\)/);
@@ -292,13 +292,13 @@ test('Zeitstempel: Unix-Millisekunden, Unix-Sekunden und Apple-Zeit (iPhone) ohn
   const { ctx } = environment();
   const p = ctx.Model.parseTimestamp;
   // Apple-Zeit: Sekunden seit 1.1.2001 UTC, mit und ohne Nachkommastellen
-  assert.equal(p('801647260'), Date.UTC(2026, 4, 28, 7, 47, 40));
-  assert.equal(p('811805666.0557225'), 1790112866056);
-  assert.equal(p('811805666,0557225'), 1790112866056);
+  assert.equal(p('788954400'), Date.UTC(2026, 0, 1, 10, 0, 0));
+  assert.equal(p('788954400.0557225'), 1767261600056);
+  assert.equal(p('788954400,0557225'), 1767261600056);
   // Unix-Zeit wie bisher, jetzt auch mit Nachkommastellen
-  assert.equal(p('1780066794508'), 1780066794508);
-  assert.equal(p('1780066794'), 1780066794000);
-  assert.equal(p('1780066794.508'), 1780066794508);
+  assert.equal(p('1767261600508'), 1767261600508);
+  assert.equal(p('1767261600'), 1767261600000);
+  assert.equal(p('1767261600.508'), 1767261600508);
   // Andere Längen sind keine Zeitstempel
   assert.equal(p('12345678'), 0);
 });
@@ -386,4 +386,153 @@ test('ALEAPP: Zeiten mit und ohne Zonenangabe, andere Formate bleiben unverände
   assert.equal(u(''), '');
   assert.equal(u('04.09.2026 14:41'), '04.09.2026 14:41');
   assert.equal(ctx.Model.parseTimestamp(u('2026-09-04 14:41:25+00:00')), Date.UTC(2026, 8, 4, 14, 41, 25));
+});
+
+// ALEAPP-Bericht als Ganzes: Spaltenköpfe wie in echten Berichten (ALEAPP 2026), Inhalte erfunden
+const oneToOneKopf = ['Message Timestamp', 'Received Timestamp', 'Final Location Timestamp', 'Message Direction',
+  'Other Participant WA User Name', 'Message', 'Media', 'Sending Party JID', 'Message Type', 'Local Path To Media',
+  'Media File Size', 'Shared Latitude/Starting Latitude (Live Location)', 'Shared Longitude/Starting Longitude (Live Location)',
+  'Duration Live Location Shared (Seconds)', 'Final Live Latitude', 'Final Live Longitude'];
+const einzel = (ts, richtung, partner, text, jid, typ, media = '', lokal = '') =>
+  [ts, '', '', richtung, partner, text, media, jid, typ, lokal, '', '', '', '', '', ''];
+const berichtDateien = (liste) => {
+  const dateien = liste.map(([name, zeilen]) => new File([tsv(zeilen)], name));
+  return { dateien, paths: new Map(dateien.map(f => [f, 'ALEAPP_Reports/_TSV Exports/' + f.name])) };
+};
+
+test('ALEAPP-Bericht WhatsApp: Namen, LID-Chats, Lesebestätigung, Reaktion, Systemereignis und Anruf werden verbunden', async () => {
+  const { ctx, messages } = environment();
+  const { dateien, paths } = berichtDateien([
+    ['WhatsApp - One To One Messages.tsv', [oneToOneKopf,
+      einzel('2026-09-01 10:00:00+00:00', 'Incoming', '4917011111@s.whatsapp.net', 'Hallo', '4917011111@s.whatsapp.net', 'Text'),
+      einzel('2026-09-01 10:01:00+00:00', 'Outgoing', '4917011111@s.whatsapp.net', 'Hi zurück', '', 'Text'),
+      einzel('2026-09-01 10:05:00+00:00', 'Outgoing', '4917011111@s.whatsapp.net', '', '', '90'),
+      einzel('2026-09-01 11:00:00+00:00', 'Outgoing', 'Carl', '', '', 'Picture', 'media/abc.jpg', 'Media/WhatsApp Images/IMG-1.jpg')]],
+    ['WhatsApp - Contacts.tsv', [['Name', 'JID', 'Number'],
+      ['Anna', '4917011111@s.whatsapp.net', '+4917011111'], ['333@lid', '333@lid', '333@lid']]],
+    ['WhatsApp - Group Messages.tsv', [['Message Timestamp', 'Received Timestamp', 'Final Location Timestamp', 'Message Direction',
+      'Sending Party', 'Message', 'Media', 'Conversation Name', 'Sending Party JID', 'Message Type', 'Local Path To Media', 'Media File Size'],
+      ['2026-09-01 12:00:00+00:00', '', '', 'Outgoing', 'Self', 'Morgen?', '', 'Lauftreff', '', 'Text', '', ''],
+      ['2026-09-01 12:01:00+00:00', '', '', 'Incoming', 'Bea', 'Ja', '', 'Lauftreff', '4916022222@s.whatsapp.net', 'Text', '', '']]],
+    ['WhatsApp - Message Receipts Per Recipient.tsv', [['Receipt Timestamp', 'Read Timestamp', 'Played Timestamp', 'Message Timestamp',
+      'Recipient JID', 'Recipient WA Name', 'Chat JID', 'Chat Name', 'Message', 'Message Type (as stored)', 'Key ID'],
+      ['2026-09-01 10:01:05+00:00', '2026-09-01 10:02:00+00:00', '', '2026-09-01 10:01:00+00:00', '222@lid', '', '222@lid', '', 'Hi zurück', '0', 'K1']]],
+    ['WhatsApp - Message Reactions.tsv', [['Reaction Timestamp', 'Sender Timestamp', 'Reaction', 'Direction', 'Sender JID',
+      'Sender WA Name', 'Chat JID', 'Chat Name', 'Reacted-To Message', 'Reacted-To Message Type (as stored)', 'Add-On Type (as stored)', 'Key ID'],
+      ['2026-09-01 10:03:00+00:00', '2026-09-01 10:03:00+00:00', '👍', 'Incoming', '', '', '222@lid', '', 'Hi zurück', '0', '56', 'K2']]],
+    ['WhatsApp - System Events.tsv', [['Event Timestamp', 'Action Type (as stored)', 'Chat JID', 'Chat Name', 'Text',
+      'Affected Participants', 'Old JID', 'New JID', 'Prior Value', 'Is Me Joined (as stored)'],
+      ['2026-09-01 09:59:00+00:00', '67', '222@lid', '', '', '', '', '', '', ''],
+      ['2026-09-01 11:59:00+00:00', '11', '120363000@g.us', 'Lauftreff', 'Lauftreff', '', '', '', '', ''],
+      ['2026-09-01 08:00:00+00:00', '67', '333@lid', '', '', '', '', '', '', '']]],
+    ['WhatsApp - Call Logs.tsv', [['Call Start Timestamp', 'Call End Timestamp', 'Call Duration', 'Group Name', 'Call Direction',
+      'Caller', 'Caller JID', 'Call Type'],
+      ['2026-09-01 10:05:20+00:00', '2026-09-01 10:07:33+00:00', '00:02:13', '', 'Outgoing', 'Self', '', 'Audio'],
+      ['2026-09-01 15:00:00+00:00', '2026-09-01 15:00:00+00:00', '00:00:00', '', 'Outgoing', 'Self', '', 'Video']]],
+    ['WhatsApp Log Files.tsv', [['Timestamp', 'Token', 'Description', 'Full Line', 'Source File'], ['x', 'y', 'z', 'w', 'v']]],
+    ['Wifi Profiles.tsv', [['Name', 'Value', 'source file'], ['ssid', 'Heimnetz', 'wifi.xml']]]
+  ]);
+  await ctx.Import.importiereDateien(dateien, { paths, fromFolder: true });
+  const { state } = ctx.Model;
+  const chat = titel => state.conversations.find(c => c.title === titel);
+  assert.deepEqual(plain(state.conversations.map(c => c.title).sort()),
+    ['Anna', 'Anrufe ohne Gesprächspartner', 'Carl', 'LID 333', 'Lauftreff']);
+  // Kennung über die Kontakte zum Namen; Lesebestätigung → gelesen; Reaktion per Text im LID-Chat
+  const anna = chat('Anna');
+  assert.deepEqual(plain(anna.messages.map(m => [m.sender, m.type, m.text, m.status])), [
+    ['system', 'system', 'Nachrichten und Anrufe sind Ende-zu-Ende-verschlüsselt', ''],
+    ['Anna', 'text', 'Hallo', ''],
+    ['Ich', 'text', 'Hi zurück', 'gelesen'],
+    ['Ich', 'anruf', 'Sprachanruf · 2:13 min', '']]);
+  assert.deepEqual(plain(anna.messages[2].reactions.map(r => [r.sender, r.text])), [['Anna', '👍']]);
+  // Kopie im Berichtsordner vor dem Gerätepfad
+  assert.deepEqual(plain(chat('Carl').messages.map(m => [m.type, m.media])), [['bild', 'media/abc.jpg']]);
+  assert.deepEqual(plain(chat('Lauftreff').messages.map(m => [m.sender, m.text])),
+    [['system', 'Gruppe „Lauftreff“ erstellt'], ['Ich', 'Morgen?'], ['Bea', 'Ja']]);
+  assert.deepEqual(plain(chat('Anrufe ohne Gesprächspartner').messages.map(m => m.text)), ['Videoanruf · nicht angenommen']);
+  assert.match(messages.at(-1), /ALEAPP-Bericht zusammengeführt: <b>WhatsApp<\/b> \(8 Tabellen/);
+  assert.match(messages.at(-1), /1 weitere Tabellen ohne Chats übergangen/);
+  assert.doesNotMatch(messages.at(-1), /Pflichtspalten|empfohlene/);
+  const anzahl = state.messages.length;
+  await ctx.Import.importiereDateien(dateien, { paths, fromFolder: true });
+  assert.equal(state.messages.length, anzahl);
+});
+
+test('ALEAPP-Bericht Signal: Chatnamen, Anhänge mit Typ und Beschriftung, Zitat, gelesen, gelöscht', async () => {
+  const { ctx } = environment();
+  const kopf = ['Date Sent', 'Date Received', 'Thread ID', 'Direction', 'Status', 'Sender', 'Sender Phone Number', 'Recipient',
+    'Recipient Phone Number', 'Message', 'Attachments', 'Attachment Count', 'Read', 'Remote Deleted', 'View Once', 'Quoted Message',
+    'Quoted Author', 'Quoted Message Sent', 'Quoted Message ID', 'Quoted Original Missing', 'Disappearing Timer (Seconds)', 'Message ID'];
+  const n = (id, ts, thread, richtung, status, sender, empf, text, anh, geloescht, zitat) =>
+    [ts, ts, thread, richtung, status, sender, '', empf, '', text, anh, anh ? '1' : '0', 'Yes', geloescht, 'No', '', '', '', zitat, 'No', '', id];
+  const { dateien, paths } = berichtDateien([
+    ['Signal - Messages.tsv', [kopf,
+      n('1', '2026-09-02 08:00:00+00:00', '1', 'Incoming', '', 'Anna Beispiel', 'Ich', 'Hallo', '', 'No', ''),
+      n('2', '2026-09-02 08:01:00+00:00', '1', 'Outgoing', 'Delivered', 'Ich', 'Anna Beispiel', '', 'media/a1.jpg', 'No', ''),
+      n('3', '2026-09-02 08:02:00+00:00', '1', 'Incoming', '', 'Anna Beispiel', 'Ich', 'Schön!', '', 'No', '2'),
+      n('4', '2026-09-02 09:00:00+00:00', '2', 'Outgoing', 'Read', 'Ich', 'Lauftreff', 'Morgen?', '', 'No', ''),
+      n('5', '2026-09-02 09:01:00+00:00', '2', 'Incoming', '', 'Bea', 'Lauftreff', 'weg', '', 'Yes', '')]],
+    ['Signal - Attachments.tsv', [['Message Date Sent', 'Attachment', 'Thumbnail', 'File Name', 'Recorded Content Type',
+      'Detected Content Type', 'Size (Bytes)', 'Stored File', 'Transfer State', 'Voice Note', 'Video GIF', 'Dimensions', 'Caption',
+      'Upload Timestamp', 'Sender', 'Direction', 'Thread ID', 'Message ID'],
+      ['2026-09-02 08:01:00+00:00', 'media/a1.jpg', '', 'foto.jpg', 'image/jpeg', 'image/jpeg', '1000', '/data/x', '0', 'No', 'No',
+        '10x10', 'Foto vom Lauf', '', 'Ich', 'Outgoing', '1', '2']]],
+    ['Signal - Contacts.tsv', [['Name', 'Phone Number', 'Username', 'Recipient Type', 'ACI', 'PNI', 'Blocked', 'Hidden', 'About',
+      'Note', 'Last Profile Fetch', 'Recipient ID'], ['Anna Beispiel', '+4917011111', '', 'Individual', 'a-1', '', 'No', 'No', '', '', '', '3']]]
+  ]);
+  await ctx.Import.importiereDateien(dateien, { paths, fromFolder: true });
+  const { state } = ctx.Model;
+  assert.deepEqual(plain(state.conversations.map(c => [c.messenger, c.title]).sort()), [['signal', 'Anna Beispiel'], ['signal', 'Lauftreff']]);
+  const anna = state.conversations.find(c => c.title === 'Anna Beispiel');
+  assert.deepEqual(plain(anna.messages.map(m => [m.id, m.sender, m.type, m.text, m.media, m.replyTo, m.status])), [
+    ['signal-1', 'Anna Beispiel', 'text', 'Hallo', '', '', ''],
+    ['signal-2', 'Ich', 'bild', 'Foto vom Lauf', 'media/a1.jpg', '', 'zugestellt'],
+    ['signal-3', 'Anna Beispiel', 'text', 'Schön!', '', 'signal-2', '']]);
+  const gruppe = state.conversations.find(c => c.title === 'Lauftreff');
+  assert.deepEqual(plain(gruppe.messages.map(m => [m.sender, m.status])), [['Ich', 'gelesen'], ['Bea', 'gelöscht']]);
+});
+
+test('ALEAPP-Bericht SMS/MMS: MMS aus „pdu“ kollidieren nicht, Google Messages liefert Namen statt Doppelungen', async () => {
+  const { ctx, messages } = environment();
+  const kombi = ['Date', 'Date Sent', 'Direction', 'Address', 'Body', 'Media', 'Message Type', 'MSG ID', 'Thread ID', 'Read',
+    'To Address', 'Cc', 'Bcc', 'Contact ID', 'Service Center', 'Error Code', 'Source Table'];
+  const k = (ts, richtung, adresse, text, id, thread, quelle) => [ts, '', richtung, adresse, text, '', 'sms', id, thread, '1', '', '', '', '', '', '', quelle];
+  const gm = ['Message Timestamp', 'Direction', 'Message Sender', 'Other Participant/Conversation Name', 'Message', 'Message Type',
+    'Attachment Byte Size', 'Attachment Location', 'Conversation ID'];
+  const { dateien, paths } = berichtDateien([
+    ['SMS and MMS Messages.tsv', [kombi,
+      k('2026-09-03 07:00:00+00:00', 'Received', '+4930123', 'Ihr Code: 123', '1', '4', 'sms'),
+      k('2026-09-03 08:00:00+00:00', 'Received', '+4917011111', 'Bild folgt', '1', '2', 'pdu'),
+      k('2026-09-03 08:05:00.250000+00:00', 'Failed', '+4917011111', 'Rückruf?', '2', '2', 'sms')]],
+    ['GoogleMessages.tsv', [gm,
+      ['2026-09-03 07:00:00+00:00', 'Incoming', 'Bank', 'Bank', 'Ihr Code: 123', 'text/plain', 'n/a', '', '7'],
+      ['2026-09-03 08:00:00+00:00', 'Incoming', 'Anna', 'Anna', 'Bild folgt', 'text/plain', 'n/a', '', '8'],
+      ['2026-09-03 08:05:00.250000+00:00', 'Outgoing', 'Ich', 'Anna', 'Rückruf?', 'text/plain', 'n/a', '', '8'],
+      ['2026-09-03 08:10:00+00:00', 'Incoming', 'Anna', 'Anna', 'Per RCS', 'text/plain', 'n/a', '', '8']]]
+  ]);
+  await ctx.Import.importiereDateien(dateien, { paths, fromFolder: true });
+  const { state } = ctx.Model;
+  assert.deepEqual(plain(state.conversations.map(c => [c.messenger, c.title, c.count]).sort()), [['sms', 'Anna', 3], ['sms', 'Bank', 1]]);
+  const anna = state.conversations.find(c => c.title === 'Anna');
+  assert.deepEqual(plain(anna.messages.map(m => [m.id.replace(/^auto-.*/, 'auto'), m.sender, m.text, m.status])), [
+    ['mms-1', 'Anna', 'Bild folgt', ''], ['sms-2', 'Ich', 'Rückruf?', 'fehlgeschlagen'], ['auto', 'Anna', 'Per RCS', '']]);
+  assert.match(messages.at(-1), /Google Messages<\/b> \(1 Tabelle, 1 Einträge, 3 schon in SMS enthalten\)/);
+});
+
+test('ALEAPP: jede bekannte Tabelle wird eindeutig ihrer App zugeordnet und lässt sich auswerten', () => {
+  const { ctx } = environment();
+  const A = ctx.Aleapp;
+  for (const q of A.quellen()) {
+    for (const [rolle, spalten] of Object.entries(q.tabellen)) {
+      const erkannt = A.erkenne(spalten);
+      assert.ok(erkannt && erkannt.quelle === q && erkannt.rolle === rolle, q.app + ' / ' + rolle + ' wird als ' +
+        (erkannt ? erkannt.app + ' / ' + erkannt.rolle : 'nichts') + ' erkannt');
+      // Eine Zeile mit Werten in allen Erkennungsspalten darf nicht abstürzen
+      const zeile = Object.fromEntries(spalten.map(s => [s, 'Wert']));
+      zeile.timestamp = zeile['message timestamp'] = '2026-09-01 10:00:00';
+      const ergebnis = A.kombiniere([{ name: 'x.tsv', quelle: q, rolle, data: [zeile] }]);
+      for (const satz of ergebnis) for (const z of satz.data) assert.ok(z.unterhaltungs_id, q.app + ': Zeile ohne Chat');
+    }
+  }
+  assert.ok(A.quellen().length >= 40);
 });

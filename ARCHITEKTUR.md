@@ -62,7 +62,9 @@ gebildeten Unterhaltungen, der offene Chat, Suchbegriffe, Treffer.
 | `messengers.js` | `Messengers` | Logos und Farben der Messenger |
 | `media.js` | `Media` | Medienordner einlesen, Pfade zuordnen, Dateien liefern |
 | `whatsapp.js` | `WhatsApp` | Android-/iPhone-Textexporte erkennen, Datum und Anhänge lesen, stabile Nachrichten-IDs erzeugen |
-| `aleapp.js` | `Aleapp` | ALEAPP-Berichte (TSV) am Spaltenkopf erkennen und ins eigene Spaltenformat übersetzen, UTC-Zeiten kennzeichnen |
+| `aleapp.js` | `Aleapp` | ALEAPP-Berichte: jede TSV an ihren Spalten einer App und Rolle zuordnen, die Tabellen einer App gemeinsam auswerten, Quellen abgleichen (SMS ↔ Google Messages); kennt selbst keine App |
+| `aleapp-whatsapp.js` | – | WhatsApp aus ALEAPP: Kontakte, LID-Chats über Zeit + Text, Lesebestätigungen, Reaktionen, Systemereignisse, Anrufe, Umfragen |
+| `aleapp-apps.js` | – | Signal, Telegram, Threema, SMS/MMS, Google Messages und rund 35 weitere Apps über `Aleapp.einfach` |
 | `archive.js` | `Archive` | ZIP lesen (für docx/xlsx/pptx/odf) – ganz ohne Bibliothek |
 | `documents.js` | `Documents` | Dokumente: Vorschau, Textauszug, Hintergrundlauf |
 | `translate.js` | `Translate` | Übersetzung über die Browser-Schnittstelle |
@@ -94,7 +96,7 @@ weder den Zustand noch stößt sie Läufe an.
 | `meldung.js` | `Meldung` | kurze Rückmeldungen unten („Toast") |
 | `fortschritt.js` | `Fortschritt` | Leiste über dem Chat und Balken in den Panels |
 | `hilfe.js` | `Hilfe` | Erklärfenster zum CSV-Format, Vorlage speichern |
-| `import.js` | `Import` | CSV einlesen, Ablegen per Maus, Export, Demodaten |
+| `import.js` | `Import` | CSV, WhatsApp-Export und ALEAPP-Bericht einlesen, Ablegen per Maus, Export, Demodaten |
 | `whatsapp-import.js` | `WhatsAppImport` | Chatname/Datumsformat abfragen, ZIP-Exporte lesen und Anhänge bei Bedarf entpacken |
 | `medienordner.js` | `Medienordner` | Ordner verbinden, merken, trennen |
 | `uebersetzen.js` | `Uebersetzen` | 🌐 Knopf, Panel, Chatlauf, Einzelnachricht |
@@ -137,10 +139,21 @@ deshalb steht `helfer.js` ganz vorn und `app.js` ganz hinten.
 ## Abläufe im Überblick
 
 **Import**
-`Import.importiereDateien` → `CSV.toObjects` → `Aleapp.umsetzen` (nur bei ALEAPP-Berichten) → `Model.buildMapping` →
+`Import.importiereDateien` → `CSV.toObjects` → `Model.buildMapping` →
 `Model.rowToMessage` je Zeile → zusammenführen über `Messenger::nachricht_id`
 → `Model.rebuild` → `Import.speichere` (ein IndexedDB-Eintrag je
 Unterhaltung) → `Render.renderAll` → `Dokumentenlauf.alleLesen`.
+
+**ALEAPP-Bericht**
+Erst werden alle Dateien eines Imports gelesen: `Aleapp.erkenne` ordnet jede Tabelle
+an ihren Spalten einer Quelle und Rolle zu (Nachrichten, Kontakte, Anrufe …). Danach
+wertet `Aleapp.kombiniere` die Tabellen je Quelle gemeinsam aus und liefert Zeilen im
+eigenen Spaltenformat; sie laufen wie eine CSV durch `Model.rowToMessage`. Erst zuletzt
+kommen die übrigen CSV/TSV – stammen sie aus demselben Bericht, werden Tabellen ohne
+Chats still übergangen. Eine neue App meldet sich mit `Aleapp.quelle({app, tabellen,
+kombiniere})` an, eine einfache mit `Aleapp.einfach({...})` in `aleapp-apps.js`; der
+Test „jede bekannte Tabelle wird eindeutig …“ prüft, dass sich die Erkennungsspalten
+nicht überschneiden.
 
 **WhatsApp-Import**
 `Import.importiereDateien` verarbeitet TXT, ZIP und lose Anhänge; parallele Importe
@@ -153,8 +166,9 @@ bleiben. Wiederholungsimporte setzen denselben vom Nutzer vergebenen Chatnamen v
 
 **Tests**
 `node --test tests/whatsapp.test.cjs tests/media.test.cjs` prüft Parser, Datumsvarianten,
-Anhänge, ZIPs, Wiederholungsimporte, GIF-Schleifen, Medienpfade, Ladevorgänge und die
-bestehenden CSV-Beispiele ohne zusätzliche Pakete. `python -B -m unittest discover
+Anhänge, ZIPs, Wiederholungsimporte, GIF-Schleifen, Medienpfade, Ladevorgänge, das
+Zusammenführen von ALEAPP-Berichten (WhatsApp, Signal, SMS/Google Messages, alle Quellen)
+und die bestehenden CSV-Beispiele ohne zusätzliche Pakete. `python -B -m unittest discover
 -s tests -p test_serve.py` prüft die HTTP-Teilabrufe des Python-Servers. Die Datei
 `tests/fixtures/medien-test.csv` dient zur Browserprüfung; die kleinen GIF-/PNG-Dateien
 daneben sind synthetische Testbilder.

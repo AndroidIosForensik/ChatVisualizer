@@ -223,6 +223,8 @@
       </header>
 
       <div class="modal-body">
+        <p class="modal-lead"><b>ALEAPP-Berichte brauchen keine CSV-Umwandlung.</b>
+          Den ganzen Berichtsordner ins Fenster ziehen – die Tabellen jeder Chat-App werden erkannt und zusammengeführt.</p>
         <p class="modal-lead"><b>WhatsApp-Textexporte brauchen keine CSV-Umwandlung.</b>
           Die TXT- oder ZIP-Datei über „+ Import“ auswählen. Anhänge zusammen mit der TXT auswählen
           oder den entpackten Exportordner über 🖼 verbinden. Vor dem Import Chatname und Datum prüfen.</p>
@@ -307,7 +309,7 @@
         <ul class="modal-liste">
           <li><b>Trennzeichen</b> wird automatisch erkannt: Komma, Semikolon, Tabulator oder senkrechter Strich.</li>
           <li><b>Zeichensatz</b> UTF-8 (mit oder ohne BOM). Anführungszeichen nach RFC 4180, Zeilenumbrüche innerhalb von Feldern sind erlaubt.</li>
-          <li><b>Zeitformat</b> frei wählbar: <code>2026-08-30T18:12:04</code>, <code>30.08.2026 18:12</code> oder Unix-Zeit in Sekunden bzw. Millisekunden. Neunstellige Zahlen wie <code>811805666.05</code> gelten als Apple-Zeit (Sekunden seit 1.1.2001, so speichern iPhone-Datenbanken) und werden selbst umgerechnet.</li>
+          <li><b>Zeitformat</b> frei wählbar: <code>2026-08-30T18:12:04</code>, <code>30.08.2026 18:12</code> oder Unix-Zeit in Sekunden bzw. Millisekunden. Neunstellige Zahlen wie <code>788954400.5</code> gelten als Apple-Zeit (Sekunden seit 1.1.2001, so speichern iPhone-Datenbanken) und werden selbst umgerechnet.</li>
           <li><b>Englische Spaltennamen</b> gehen auch: <code>message_id</code>, <code>timestamp</code>, <code>sender_id</code>, <code>conversation_id</code>, <code>content</code>, <code>message_type</code>, <code>media_path</code>, <code>reply_to_id</code>, <code>reaction_to_id</code>, <code>status</code>, <code>platform</code>, <code>chat_name</code>, <code>from_me</code>.</li>
           <li><b>Mehrere Dateien</b> lassen sich zusammen importieren; dieselbe Datei zweimal zu importieren erzeugt keine Doppelten, sondern aktualisiert die Nachrichten (Schlüssel: Messenger + <code>nachricht_id</code>, ohne ID der Inhalt).</li>
           <li><b>Ja/nein-Spalten</b> wie <code>von_mir</code> verstehen <code>1</code>, <code>true</code>, <code>ja</code> und <code>x</code>.</li>
@@ -371,6 +373,8 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 <script src="js/daten/archive.js"></script>
 <script src="js/daten/whatsapp.js"></script>
 <script src="js/daten/aleapp.js"></script>
+<script src="js/daten/aleapp-whatsapp.js"></script>
+<script src="js/daten/aleapp-apps.js"></script>
 <script src="js/daten/documents.js"></script>
 <script src="js/daten/transcribe.js"></script>
 <script src="js/daten/translate.js"></script>

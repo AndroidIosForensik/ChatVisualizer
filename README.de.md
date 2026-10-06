@@ -1,0 +1,532 @@
+# ChatVisualizer
+
+[English](README.md) | **Deutsch**
+
+Liest ALEAPP-Berichte (WhatsApp, Signal, SMS und rund 40 weitere Chat-Apps), WhatsApp-Textexporte
+(TXT oder ZIP mit Medien) und Chat-Exporte im CSV-Format ein und zeigt sie als
+Messenger-Oberfläche an:
+mit Logo, Chatliste, Suche und Detailspalte. Alles läuft im Browser auf dem
+eigenen Rechner, es wird nichts hochgeladen.
+
+## Starten
+
+Windows: Doppelklick auf `ChatVisualizer starten.cmd`. Der Browser öffnet sich von
+selbst, das Fenster daneben ist der lokale Server; zum Beenden schließen. Installiert
+werden muss nichts, es genügt PowerShell. Der Ordner funktioniert auch vom USB-Stick
+oder Netzlaufwerk.
+
+macOS und Linux: `./start.sh`, benutzt python3, python, php oder ruby, je nachdem was
+vorhanden ist.
+
+Der Port wird automatisch gewählt: ab 8777 der erste freie. Ein fester Port geht auch:
+
+```powershell
+.\start.ps1 -Port 9000
+```
+
+Unter macOS/Linux `./start.sh 9000`, ohne Browserstart `.\start.ps1 -NoBrowser`.
+
+Über `localhost` funktioniert die dauerhafte Speicherung (IndexedDB), importierte Chats
+sind nach einem Neustart wieder da. `index.html` lässt sich zur Not auch direkt per
+Doppelklick öffnen; dann verweigern manche Browser die dauerhafte Speicherung und die
+Daten gelten nur für die Sitzung. Die Startdatei geht diesen Weg automatisch, falls kein
+Server startet.
+
+### Erster Start
+
+Beim ersten Start prüft das Startskript, ob das Spracherkennungsmodell vorhanden ist,
+und lädt es andernfalls nach: rund 242 MB von huggingface.co, einmalig. Der Fortschritt
+steht im Konsolenfenster, ein Abbruch mit `Strg+C` setzt beim nächsten Start dort fort,
+wo er aufgehört hat. Alles außer der Transkription funktioniert auch ohne das Modell.
+
+Ohne Nachladen starten:
+
+```powershell
+.\start.ps1 -KeinModell
+```
+
+Unter macOS/Linux `CHATVISUALIZER_KEIN_MODELL=1 ./start.sh`. Nur das Modell holen, ohne
+den Server zu starten: `python3 hole-modell.py`.
+
+Welche Dateien dazugehören, steht in [`modelle/quellen.json`](modelle/quellen.json), mit
+Größe und Prüfsumme je Datei. Wer ein weiteres Modell möchte, trägt es dort nach
+demselben Muster ein.
+
+## Bedienung
+
+| Aktion | Wie |
+| --- | --- |
+| Importieren | Button **+ Import** oder Dateien ins Fenster ziehen: ALEAPP-Berichtsordner oder -TSV, WhatsApp-TXT/ZIP, CSV und Anhänge, auch mehrere gleichzeitig – siehe [Unterstützte Quellen](#unterstützte-quellen) |
+| Format nachschlagen | Button **?** in der Seitenleiste: erklärt jede Spalte mit Bedeutung und Beispiel und speichert auf Wunsch eine Vorlage als CSV |
+| Medienordner | Button **🖼** oder den Ordner ins Fenster ziehen. Bilder, Videos, PDFs und Sprachnachrichten erscheinen danach im Chat |
+| Dokumente | PDFs zeigen eine Seitenvorschau, Word/Excel/Text eine Leseprobe, ein Klick öffnet den Inhalt. Alle Dokumente werden im Hintergrund gelesen und sind damit durchsuchbar |
+| Sprachnachrichten | **🎤** in der Chat-Kopfzeile transkribiert alle Sprachnachrichten des Chats, 🎤 an der Sprechblase nur diese eine |
+| Übersetzen | **🌐** in der Chat-Kopfzeile übersetzt den ganzen Chat, 🌐 an der Sprechblase nur diese eine. Das Original bleibt darunter sichtbar |
+| Einstellungen dazu | das **▾** neben 🎤 bzw. 🌐: Zielsprache, Verfahren, Modell, Transkripte löschen |
+| Fortschritt | Während eines Durchlaufs zeigt ein Balken über dem Chat den Stand an, etwa „Übersetzt… 12 / 14". Er bleibt auch bei geschlossenem Panel sichtbar und lässt sich dort abbrechen |
+| Suchen (alle Chats) | Feld oben links, `Strg+K`. Zeigt die Trefferzahl je Chat, ein Klick springt zum Treffer |
+| Suchen (im Chat) | Lupe in der Chat-Kopfzeile, `Strg+F`, mit `Enter` und `Umschalt+Enter` durch die Treffer |
+| Filtern | Messenger-Chips unter dem Suchfeld |
+| Sortieren | Auswahlfeld über der Chatliste: neueste, älteste, meiste Nachrichten, Name |
+| Eigene Seite festlegen | **Ich:** in der Chat-Kopfzeile. Diese Person erscheint rechts in Blau |
+| Details und Statistik | ⓘ rechts oben: Teilnehmer, Zeitraum, Nachrichtentypen, Medien |
+| Exportieren | ⤓ in der Chat-Kopfzeile für den Chat als Text, ⤓ in der Seitenleiste für alles als JSON |
+| Hell und Dunkel | ◐ in der Seitenleiste |
+| Alles löschen | 🗑 in der Seitenleiste |
+
+Zitierte Nachrichten (`antwort_auf_id`) sind anklickbar und springen zum Original.
+Reaktionen (`reaktion_auf_id`) hängen als Emoji an der Zielnachricht, statt als eigene
+Nachricht zu erscheinen.
+
+## Unterstützte Quellen
+
+Drei Wege führen in den ChatVisualizer, alle ohne Rückfragen nach Spalten:
+
+| Quelle | Was man hineinzieht | Was passiert |
+| --- | --- | --- |
+| **ALEAPP-Bericht** | den ganzen Berichtsordner (`ALEAPP_Reports_…` bzw. `ALEAPP_Output_…`) oder die TSV-Dateien aus `_TSV Exports` | Die Tabellen einer App werden erkannt und **zusammengeführt**: Namen, Anhänge, Anrufe, Systemereignisse, Lesebestätigungen, Reaktionen. Alle anderen Tabellen des Berichts (Browser, WLAN, Konten …) werden still übergangen. |
+| **WhatsApp-Textexport** | TXT, ZIP mit Medien oder den entpackten Ordner (Android und iPhone) | siehe [WhatsApp-Textexporte mit Medien](#whatsapp-textexporte-mit-medien) |
+| **Eigene CSV/TSV** | CSV- oder TSV-Dateien, z. B. aus SQL-Abfragen auf App-Datenbanken | siehe [CSV-Format](#csv-format) |
+
+### Chat-Apps aus ALEAPP-Berichten
+
+Erkannt wird jede Tabelle an ihren Spalten, nicht am Dateinamen – die Namen ändern sich
+zwischen ALEAPP-Versionen. Die Spalten stammen aus dem ALEAPP-Quelltext
+(`scripts/artifacts/*.py`, Stand Oktober 2026). „Echter Bericht“ heißt: an ALEAPP-Berichten
+echter Android-Geräte geprüft; die übrigen Apps sind mit den exakten ALEAPP-Spalten getestet,
+aber ohne echtes Gerät.
+
+| App | zusammengeführte Tabellen | geprüft |
+| --- | --- | --- |
+| **WhatsApp** | One To One Messages, Group Messages, Messages (altes Schema), Contacts, Call Logs, System Events, Message Receipts Per Recipient, Message Reactions, Message Edit History, Revoked Messages, Polls | echter Bericht |
+| **Signal** | Messages, Attachments, Calls, Contacts, Groups | echter Bericht |
+| **SMS/MMS** (mmssms.db) | SMS and MMS Messages, SMS Messages, MMS Messages, MMS Attachments | echter Bericht |
+| **Google Messages** | GoogleMessages – mit SMS/MMS abgeglichen, siehe unten | echter Bericht |
+| **Telegram** | Messages, Chats | erkannt¹ |
+| **Threema** | Messages, Contacts | erkannt¹ |
+| Facebook Messenger | Chats (msys_database), Chats (threads_db2) | ALEAPP-Spalten |
+| Instagram | Direct Messages | ALEAPP-Spalten |
+| Snapchat | Messages (arroyo.db), Messages | ALEAPP-Spalten |
+| Discord, Viber, Skype, Teams, LINE, Kik, WeChat, TikTok | je eine Nachrichtentabelle | ALEAPP-Spalten |
+| Tinder, Bumble, Badoo, Zangi, TextNow, Google Chat, Google Voice, imo, MeWe, Wire, SimpleX, Bluesky, Burner, MeetMe, RandoChat, Tango, Kijiji, Sideline, Slack, Chess.com | je eine Nachrichtentabelle | ALEAPP-Spalten |
+| SMS-Sicherungen | SMS Backup and Restore Messages, SMS and MMS Backup | ALEAPP-Spalten |
+| RCS (LG), DeepSeek | je eine Nachrichtentabelle | ALEAPP-Spalten |
+
+¹ In den geprüften Berichten lagen nur Konto- und Einstellungstabellen vor – die Nachrichtendatenbanken
+von Telegram, Threema und Signal sind auf aktuellen Geräten verschlüsselt, ALEAPP liest sie
+dort nicht. Der ChatVisualizer meldet dann „keine Nachrichten enthalten“.
+
+### So werden die Tabellen verbunden
+
+- **Namen:** Kennungen wie `4917…@s.whatsapp.net` werden über die Kontakttabelle zu Namen;
+  ohne Namen erscheint die Telefonnummer, anonyme Kennungen als `LID …` (keine Telefonnummer).
+- **Chat-Zuordnung über Zeit und Text:** Neuere WhatsApp-Versionen nennen Chats in
+  Lesebestätigungen, Reaktionen und Systemereignissen nur mit einer anonymen `…@lid`. Eine
+  Lesebestätigung nennt aber Zeitpunkt und Text ihrer Nachricht – darüber ist bekannt, welcher
+  Chat hinter der Kennung steckt. So landen Systemereignisse und Reaktionen im richtigen Chat.
+- **Häkchen:** Eigene Nachrichten mit gelesener Lesebestätigung zeigen ✓✓ blau, sonst ✓✓.
+- **Anrufe:** Ein Anruf aus der Anrufliste, der auch im Chatverlauf steht, bekommt dort Art und
+  Dauer („Sprachanruf · 2:13 min“) und taucht nicht doppelt auf.
+- **Anhänge:** Bevorzugt wird die Kopie im Berichtsordner (`media/…`), sonst der Pfad auf dem
+  Gerät. Wird der ganze Berichtsordner hineingezogen, sind die Bilder und Videos sofort da.
+- **Google Messages und SMS:** Beide Datenbanken enthalten dieselben Nachrichten. Liegen beide
+  vor, bleibt jede Nachricht einmal: der Zustellstatus aus SMS, die Kontaktnamen aus Google
+  Messages; was nur in Google Messages steht (RCS), kommt in denselben Chat.
+- **Nichts fällt still weg:** Nachrichten ohne Text und Datei erscheinen als Hinweis
+  („Systemmeldung“, „Anruf“, „WhatsApp-Nachrichtentyp 7 (ohne Inhalt)“).
+- **Zeiten:** ALEAPP schreibt UTC, auch ohne Zonenangabe; sie werden als UTC gelesen und in
+  Ortszeit angezeigt.
+- **Mehrfachimport:** Derselbe Bericht zweimal ergibt keine Doppelten.
+
+Die Meldung nach dem Import fasst zusammen, welche Apps mit wie vielen Tabellen und Einträgen
+zusammengeführt wurden.
+
+### Grenzen
+
+- Am besten alle TSV-Dateien eines Berichts **zusammen** importieren (Ordner hineinziehen). Wer
+  Kontakte oder Lesebestätigungen später allein nachlädt, bekommt sie nicht mehr verknüpft.
+- Ein `…@lid`-Chat, zu dem es weder Nachricht noch Lesebestätigung gibt, erscheint als eigener
+  Chat „LID …“ – meist nur mit dem Verschlüsselungshinweis.
+- ALEAPP nennt bei eigenen WhatsApp-Anrufen ohne Gegenstück im Chatverlauf keinen
+  Gesprächspartner; diese stehen unter „Anrufe ohne Gesprächspartner“.
+- Ältere ALEAPP-Fassungen ohne `jid_map`-Auflösung lassen Einzelchats mit `…@lid`-Kennung
+  ganz aus dem Bericht „WhatsApp - One To One Messages“ fallen. Dann helfen nur die
+  SQL-Abfragen auf die Datenbank selbst.
+- Reaktionen gibt es nur für WhatsApp; Bearbeitungen werden mit „(bearbeitet)“ markiert.
+
+## WhatsApp-Textexporte mit Medien
+
+In WhatsApp die Unterhaltung über **Chat exportieren** sichern und bei Bedarf
+**Medien einschließen** wählen. Anschließend im ChatVisualizer:
+
+- **ZIP:** Über **+ Import** die ZIP-Datei auswählen oder ins Fenster ziehen. Der
+  Chattext wird gelesen; Bilder, Videos, Audio und Dokumente werden beim Anzeigen
+  direkt aus dem ZIP entpackt. Alles bleibt lokal.
+- **TXT und einzelne Anhänge:** Die TXT-Datei und die dazugehörigen Mediendateien
+  gemeinsam auswählen oder zusammen ins Fenster ziehen. Anhänge können auch später
+  per Drag & Drop ergänzt werden.
+- **Entpackter Ordner:** Den kompletten Exportordner ins Fenster ziehen oder über
+  **🖼** verbinden. Enthaltene WhatsApp-Texte werden automatisch erkannt.
+
+Vor jedem WhatsApp-Import erscheinen Chatname und Datumsformat. Beim erneuten Import
+denselben Chatnamen verwenden; verschiedene Unterhaltungen brauchen unterschiedliche
+Namen. Besonders iPhone-Dateien mit dem allgemeinen Namen `_chat.txt` sollten hier
+einen aussagekräftigen Namen bekommen. Bei Daten wie `03/04/2026` ausdrücklich prüfen,
+ob Tag oder Monat zuerst steht.
+
+Unterstützt werden die üblichen numerischen Android- und iPhone-Zeitstempel mit Punkt,
+Schrägstrich oder Bindestrich, zwei- oder vierstelliger Jahreszahl, optionalen Sekunden
+und AM/PM. Mehrzeilige Nachrichten und Systemmeldungen bleiben erhalten. Medienmarker
+wie `Foto.jpg (Datei angehängt)`, `(file attached)`, `<Anhang: Foto.jpg>` und
+`<attached: Foto.jpg>` werden den Anhängen zugeordnet. Nicht unterstützte Texte werden
+nicht als Chat übernommen. Sprachvarianten mit anderen Medienmarkern sind noch nicht
+abgedeckt. Platzhalter wie „Medien ausgeschlossen“ bleiben als Text sichtbar; daraus
+lässt sich eine fehlende Datei nicht rekonstruieren.
+
+WhatsApp-Textexporte enthalten keine verlässlichen Nachrichten-IDs. Der Import bildet
+diese aus Chatname, Zeitpunkt, Absender, Inhalt und Vorkommen. Derselbe Export wird
+dadurch ohne Duplikate erneut eingelesen; veränderte Texte gelten als neue Nachrichten.
+Zitierverknüpfungen, Reaktionen und Lesestatus werden aus dem Text nicht rekonstruiert.
+
+Chats werden dauerhaft gespeichert. ZIP-Inhalte und lose Anhänge gelten für die
+Sitzung: nach einem Neustart das ZIP erneut importieren, Anhänge erneut ablegen oder
+den entpackten Medienordner verbinden. Große ZIPs (über 512 MB bzw. 1 GB entpackt)
+vorher entpacken und als Ordner verbinden; einzelne ZIP-Anhänge dürfen höchstens
+256 MB groß sein. Passwortgeschützte ZIPs werden nicht unterstützt.
+
+Ein kleines Beispiel liegt in `tests/fixtures/WhatsApp Chat mit Importtest.txt`.
+Die dort genannten Anhänge liegen in `beispiel-daten/medien/`.
+
+## CSV-Format
+
+Dieselbe Übersicht steckt im Programm hinter dem Button **?** in der Seitenleiste. Dort
+lässt sich auch eine Vorlage als CSV speichern: Kopfzeile plus fünf Beispielzeilen, die
+sich direkt wieder importieren lässt.
+
+Erwartet wird eine Kopfzeile mit Spaltennamen. Das Trennzeichen (`,` `;` Tabulator oder
+`|`) wird automatisch erkannt, ebenso UTF-8 mit und ohne BOM; Anführungszeichen nach
+RFC 4180.
+
+**Pflicht ist nur eine Spalte:** zu welchem Chat die Zeile gehört, als `unterhaltungs_id`
+oder `chatname`. Alles andere hat einen Ersatz. Für einen Chat wie im Messenger (richtiger
+Chatname, eigene Nachrichten rechts, Uhrzeiten, Anhänge) reichen sechs Spalten:
+
+```
+chatname,absender_id,von_mir,zeitstempel,nachrichteninhalt,medienpfad
+Familie,Mama,0,2026-08-30T18:12:04,Kommst du Sonntag zum Essen?,
+Familie,,1,2026-08-30T18:14:20,"Ja, gerne!",
+Familie,Mama,0,2026-08-30T18:20:11,Der neue Tisch,medien/tisch.jpg
+```
+
+| Spalte | Bedeutung | ohne die Spalte |
+| --- | --- | --- |
+| `unterhaltungs_id` | Chat, zu dem die Nachricht gehört | `chatname` dient als Kennung |
+| `chatname` | Name des Chats in Liste und Kopfzeile | Titel aus den Absendern |
+| `absender_id` | Name oder ID des Absenders | eigene Nachricht: „Ich“, sonst der Chatname |
+| `von_mir` | `1` = eigene Nachricht, steht rechts | „Ich:“ in der Kopfzeile bzw. Vermutung |
+| `zeitstempel` | `2026-08-30T18:12:04`, `30.08.2026 18:12`, Unix-Zeit in Sekunden (10 Stellen) bzw. Millisekunden (13 Stellen) oder Apple-Zeit (9 Stellen, Sekunden seit 1.1.2001, wie in iPhone-Datenbanken); Nachkommastellen erlaubt | Reihenfolge der Datei, keine Uhrzeit |
+| `nachrichteninhalt` | Text, bei Medien die Beschriftung, bei Reaktionen das Emoji | nur Medien |
+| `medienpfad` | Pfad zur Datei | keine Anhänge |
+| `nachricht_typ` | `text`, `bild`, `video`, `gif`, `audio`, `datei`, `system`, `standort`, `kontakt`, `umfrage`, `anruf` … | aus der Dateiendung, sonst Text |
+| `nachricht_id` | eindeutige ID der Nachricht | aus dem Inhalt gebildet |
+| `antwort_auf_id` | ID der zitierten Nachricht (braucht `nachricht_id`) | keine Zitate |
+| `reaktion_auf_id` | gesetzt: die Zeile ist eine Reaktion auf diese Nachricht | keine Reaktionen |
+| `status` | `gesendet`, `zugestellt`, `gelesen`, `fehlgeschlagen`, `gelöscht` … | keine Häkchen |
+| `messenger` | `WhatsApp`, `Threema`, `Telegram`, `Signal`, `Instagram`, `SMS` … | Dateiname |
+
+Englische Spaltennamen (`message_id`, `timestamp`, `sender_id`, `conversation_id`,
+`chat_name`, `from_me`, `content`, `message_type`, `media_path`, `reply_to_id`,
+`reaction_to_id`, `platform`) werden ebenfalls erkannt. `von_mir` versteht `1`, `true`, `ja`
+und `x`. Fehlt die Spalte `messenger`, dient der Dateiname als Messengername; eine Datei
+`whatsapp.csv` wird also WhatsApp zugeordnet. Unbekannte Messenger bekommen ein Logo mit
+Anfangsbuchstaben und eigener Farbe.
+
+### Mehrfachimport
+
+Nachrichten werden über `messenger + nachricht_id` eindeutig gehalten, ohne ID-Spalte über
+Chat, Zeitpunkt, Absender und Inhalt. Dieselbe Datei zweimal zu importieren erzeugt deshalb
+keine Duplikate, sondern aktualisiert die vorhandenen Nachrichten.
+
+## Übersetzung
+
+Fremdsprachige Nachrichten lassen sich ins Deutsche oder eine andere Sprache übersetzen.
+Das läuft lokal, es geht kein Text ins Netz. Das Original bleibt sichtbar: die
+Übersetzung steht in normaler Größe oben, darunter durch eine feine Linie getrennt das
+Original, kleiner und blasser, mit der erkannten Sprache als Kennzeichen.
+
+Bedient wird das über **🌐** in der Chat-Kopfzeile. Ein Klick übersetzt den ganzen Chat,
+bereits Übersetztes wird übersprungen.
+
+- Der Fortschritt steht über dem Chat und lässt sich dort abbrechen.
+- Das **▾** daneben öffnet die Einstellungen: Zielsprache, Löschen.
+- Einzelne Nachricht: 🌐 erscheint beim Überfahren einer Sprechblase, ↩ nimmt die
+  Übersetzung zurück.
+- Übersetzungen werden gespeichert, stehen nach einem Neustart sofort bereit und werden
+  von der Suche mitdurchsucht. Zitierte Antworten zeigen ebenfalls die Übersetzung.
+
+### Verfahren
+
+Übersetzt wird mit der eingebauten Übersetzung von Chrome und Edge (Translator-API, ab
+Version 138). Sie arbeitet on-device: der Browser lädt beim ersten Mal ein Sprachpaket
+für das jeweilige Sprachpaar, der Fortschritt steht im Panel. Danach bleibt jeder Text
+auf dem Rechner.
+
+Die Ausgangssprache erkennt der Browser selbst (`LanguageDetector`). Fehlt die Erkennung,
+springt eine einfache Heuristik ein; reicht auch die bei einem kurzen Satz nicht, zählt
+die vorherrschende Sprache der Unterhaltung. Bietet der Browser kein Verfahren an, sagt
+das Panel das. Alle Aufrufe laufen in ein Zeitlimit, damit die Oberfläche nicht hängt.
+
+Zum Übersetzen wird nichts installiert und nichts mitgeliefert, das erledigt der Browser.
+Das Modell im Ordner `modelle/` ist nur für die Spracherkennung zuständig.
+
+Weitere Schalter im Panel: Zielsprache, „Nachrichten in der Zielsprache überspringen" und
+das Löschen aller Übersetzungen des Chats. Reine Emoji- und Link-Nachrichten werden nicht
+übersetzt.
+
+## Sprachnachrichten transkribieren
+
+Sprachnachrichten lassen sich in Text umwandeln. Auch das läuft lokal, die Aufnahme
+verlässt den Rechner nicht. Das Modell (Whisper small) liegt im Ordner `modelle/` und
+wird beim ersten Start geladen, siehe [Erster Start](#erster-start).
+
+Bedient wird das über **🎤** in der Chat-Kopfzeile. Ein Klick arbeitet alle
+Sprachnachrichten des Chats der Reihe nach ab.
+
+- Der Fortschritt steht über dem Chat und lässt sich dort abbrechen.
+- Gibt es nichts zu tun, sagt eine Meldung warum: keine Sprachnachrichten, alles schon
+  transkribiert, Datei fehlt.
+- Das **▾** daneben öffnet die Einstellungen: Verfahren, Modell, Sprache.
+- Einzelne Nachricht: 🎤 erscheint beim Überfahren einer Sprachnachricht, ↩ entfernt das
+  Transkript.
+- Das Transkript steht unter dem Abspieler in der Sprechblase, zusammen mit der erkannten
+  Sprache. Es wird gespeichert und ist nach einem Neustart wieder da.
+
+Ein Transkript zählt für alles Weitere wie normaler Nachrichtentext. Es wird von der
+Suche gefunden und lässt sich mit 🌐 übersetzen; dann steht oben die Übersetzung und
+darunter klein das Transkript, gekennzeichnet mit 🎤.
+
+### Sprache
+
+Whisper muss wissen, in welcher Sprache gesprochen wird, sonst übersetzt es
+stillschweigend ins Englische. Die Sprache wird deshalb aus den Textnachrichten derselben
+Unterhaltung abgeleitet, bevorzugt von derselben Person. In einem russischen Chat wird
+also russisch transkribiert, in einem englischen englisch. Im Panel lässt sich die
+Sprache auch fest vorgeben, falls die Automatik danebenliegt.
+
+### Tempo und Qualität
+
+Benutzt wird Whisper small (242 MB). Die Erkennung braucht ungefähr so lange wie die
+Aufnahme selbst, gemessen auf einem normalen Rechner:
+
+| Aufnahme | Dauer | Zeit |
+| --- | --- | --- |
+| Russisch, Dialog | 18 s | 16 s |
+| Russisch, Lesung | 39 s | 34 s |
+| Deutsch | 10 s | 12 s |
+| Englisch | 9 s | 12 s |
+
+Das Modell wird einmal geladen, das dauert ein paar Sekunden, danach bleibt es warm.
+Lange Aufnahmen zerlegt Whisper selbst in Abschnitte von 30 Sekunden mit Überlappung.
+Bei vielen Sprachnachrichten lohnt es sich, den Lauf im Hintergrund durchlaufen zu
+lassen; die Ergebnisse werden gespeichert.
+
+Whisper base ist rund dreimal schneller und nur 78 MB groß, patzt dafür bei Namen und
+Zeichensetzung (aus „Мария Степановна" wird „моря степановна"). Es lässt sich in
+`modelle/quellen.json` eintragen oder von Hand nach `modelle/Xenova/whisper-base` legen,
+dann erscheint es im Panel als zweite Auswahl.
+
+### Alternative: Chrome-Spracherkennung
+
+Im Panel lässt sich auf die Chrome-Spracherkennung umschalten (Prompt-API mit
+Audio-Eingabe, Gemini Nano on-device). Sie ist in Chrome hinter Schaltern versteckt. Ist
+sie nicht freigegeben, zeigt das Panel, woran es liegt und was zu tun ist
+(`chrome://flags` → *Prompt API for Gemini Nano* und *…with Multimodal Input*, danach
+`chrome://components`). Voraussetzung sind außerdem rund 22 GB freier Speicher und eine
+GPU mit 4 GB VRAM.
+
+Für beide Verfahren muss der Medienordner verbunden sein, sonst fehlt die Audiodatei. Das
+Panel nennt die Zahl der betroffenen Nachrichten.
+
+## Medienordner
+
+Zusätzlich zu den CSV-Dateien lässt sich der Ordner mit den Anhängen verbinden, über den
+Button **🖼** in der Seitenleiste oder indem der Ordner ins Fenster gezogen wird. Danach
+zeigt der Chat die Dateien an:
+
+- Bilder erscheinen direkt als Vorschau, ein Klick öffnet die Großansicht (`←` `→` blättert durch alle
+  Bilder und Videos der Unterhaltung, `Esc` schließt)
+- GIFs laufen automatisch in Endlosschleife, ohne Play-Knopf. Das gilt auch für als
+  Video exportierte WhatsApp-GIFs mit `GIF` im Dateinamen (etwa `00001234-GIF-….mp4`)
+  oder dem CSV-Nachrichtentyp `gif`. Diese Videos laufen stumm, auch in der Großansicht.
+- Normale Videos als Player mit Steuerung in der Sprechblase
+- Sprachnachrichten und Audio als abspielbarer Player
+- PDF und andere Dateien als Kachel, die die Datei öffnet
+- in der Detailspalte echte Vorschaubilder in der Mediengalerie
+
+Nicht gefundene Dateien bleiben als Kachel mit Pfad sichtbar, ein Klick kopiert den Pfad.
+Kann der Browser einen vorhandenen Anhang nicht darstellen oder seinen Codec nicht
+abspielen, erscheint eine Meldung mit einem Link zum Speichern der Originaldatei.
+Die lokalen Windows- und Python-Server unterstützen Teilabrufe zum Laden und Spulen.
+Nach einer Aktualisierung der Startskripte den Server neu starten.
+
+### Dokumente: Vorschau und Suche
+
+Angehängte Dokumente werden gelesen, damit die Suche ihren Inhalt findet und nicht nur
+den Dateinamen:
+
+| Format | Was passiert |
+| --- | --- |
+| PDF | Vorschau der ersten Seite in der Sprechblase, ein Klick öffnet das Dokument seitenweise (`←` `→` blättern). Der Text wird ausgelesen. |
+| Word, Excel, PowerPoint (`docx`, `xlsx`, `pptx`) | Kachel mit Leseprobe, ein Klick zeigt den ganzen Text. |
+| OpenDocument (`odt`, `ods`, `odp`) | genauso |
+| Text und Daten (`txt`, `md`, `json`, `xml`, `html`, `csv`, `log`, `ini`, `yaml`, `srt`, `rtf` …) | genauso |
+
+Sobald der Medienordner verbunden ist oder neue CSV-Dateien dazukommen, werden alle
+Dokumente im Hintergrund gelesen; der Fortschritt steht über dem Chat. Damit findet die
+Suche auch Wörter, die nur im Dokument stehen, ohne dass die Datei vorher geöffnet worden
+sein muss. In der Trefferliste zeigt ein 📄 die Fundstelle samt Umgebung, bei
+Sprachnachrichten ein 🎤, bei Übersetzungen ein 🌐. Vorschaubild und Text werden
+gespeichert und sind beim nächsten Start da, auch ohne verbundenen Medienordner.
+
+Gelesen werden bis zu 60 Seiten bzw. 400.000 Zeichen je Dokument, längere werden als
+„gekürzt" gekennzeichnet. PDFs übernimmt das mitgelieferte PDF.js (`vendor/pdfjs/`, rund
+4 MB), Office-Dateien packt der Browser selbst aus. Gescannte PDFs ohne Textebene lassen
+sich ansehen, aber nicht durchsuchen; dafür bräuchte es eine Texterkennung. Die alten
+Binärformate `.doc`, `.xls` und `.ppt` werden nicht gelesen.
+
+### Zuordnung der Pfade
+
+Der Pfad aus `medienpfad` wird über seine Endung gegen den Ordner abgeglichen, die
+längste Übereinstimmung gewinnt. Groß- und Kleinschreibung sowie `\` gegen `/` spielen
+keine Rolle. So findet `C:\Backup\WhatsApp\Media\medien\foto.jpg` die Datei
+`medien/foto.jpg` im verbundenen Ordner; auch ein bloßer Dateiname genügt.
+
+Enthält der verbundene Ordner selbst CSV-Dateien, werden sie gleich mit importiert. Ein
+kompletter Export-Ordner lässt sich also in einem Zug ins Fenster ziehen.
+
+### Speicherung und Wiederverbinden
+
+In Chrome und Edge merkt sich das Werkzeug den gewählten Ordner. Beim nächsten Start
+genügt ein Klick auf „Medienordner … wieder verbinden" in der Seitenleiste. Kopiert wird
+nichts, die Dateien bleiben, wo sie sind; gelesen wird nur, was gerade gebraucht wird. In
+anderen Browsern und beim Öffnen per Doppelklick funktioniert die Ordnerauswahl ebenfalls,
+gilt aber nur für die laufende Sitzung.
+
+Liegen die Medien direkt neben `index.html`, etwa im Ordner `medien`, werden sie auch ohne
+verbundenen Ordner über den lokalen Server geladen.
+
+## Beispieldaten
+
+`beispiel-daten/` enthält 10 Chats mit 108 Nachrichten über sieben Messenger:
+
+| Datei | Trennzeichen | Zeitformat | Inhalt |
+| --- | --- | --- | --- |
+| `whatsapp_familie.csv` | Komma | ISO | Familie und Sportverein, deutsch |
+| `whatsapp_datscha_russisch.csv` | Komma | ISO | russische Gruppe mit zwei russischen Sprachnachrichten |
+| `threema_arbeit.csv` | Semikolon | `03.09.2026 08:58:00` | Projektgruppe und Beratung |
+| `telegram_freunde.csv` | Tabulator | Unix-Zeit | Laufgruppe, englische Spaltennamen |
+| `signal_anna_englisch.csv` | Komma | ISO | englischer Chat mit Sprachnachrichten |
+| `diverse_messenger.csv` | Pipe `\|` | ISO | Instagram, SMS-Benachrichtigungen, unbekannter Messenger |
+
+Enthalten sind Antworten mit Zitat, Reaktionen, gelöschte und Systemnachrichten, alle
+Statusstufen, mehrzeilige Nachrichten, Links, Emoji-Nachrichten, Standort, Kontakt,
+Umfrage, ein verpasster Anruf und ein unbekannter Messenger mit erzeugtem Logo. In
+`beispiel-daten/medien/` liegen Bilder, ein Video, PDFs, Office- und Textdateien sowie
+sieben Sprachnachrichten auf Deutsch, Englisch und Russisch.
+
+Eine Nachricht verweist absichtlich auf eine fehlende Videodatei, damit sichtbar wird, wie
+das Werkzeug damit umgeht. Woher die Mediendateien stammen, steht in
+[`beispiel-daten/QUELLEN.md`](beispiel-daten/QUELLEN.md); die russischen Aufnahmen sind
+gemeinfreie Sprachaufnahmen, alles andere ist selbst erzeugt.
+
+Ausprobieren: Startdatei doppelklicken, die sechs CSV-Dateien und den Ordner
+`beispiel-daten/medien` ins Fenster ziehen. Oder auf dem Startbildschirm „Mit Demodaten
+ansehen" wählen.
+
+## Aufbau
+
+Der Code ist in vier Schichten aufgeteilt: Grundlagen, Daten, Ansicht, Bedienung.
+[`ARCHITEKTUR.md`](ARCHITEKTUR.md) beschreibt die Module, die Abhängigkeitsregeln und die
+üblichen Einstiegspunkte für Änderungen.
+
+```
+index.html          Grundgerüst der Oberfläche und Ladereihenfolge
+css/style.css       bindet die Gestaltung aus css/teile/ ein
+css/teile/*.css     Design je Bereich: Basis, Seitenleiste, Chat, Panels …
+
+js/kern/helfer.js       kleine Helfer, die überall gebraucht werden
+js/kern/csv.js          CSV-Parser (RFC 4180, Trennzeichenerkennung)
+js/kern/store.js        IndexedDB (ein Eintrag je Unterhaltung) und Einstellungen
+js/kern/model.js        Datenmodell, Spaltenzuordnung, Index der Unterhaltungen
+
+js/daten/messengers.js  Messenger-Erkennung, Markenfarben, Logos
+js/daten/media.js       Medienbibliothek: Ordner einlesen, Pfade zuordnen, Dateien liefern
+js/daten/archive.js     ZIP-Leser für Office-Dateien (docx, xlsx, pptx, odt …)
+js/daten/whatsapp.js    WhatsApp-Textexporte: Formate erkennen, Nachrichten lesen
+js/daten/aleapp.js      ALEAPP-Berichte: Tabellen erkennen und je App zusammenführen
+js/daten/aleapp-whatsapp.js  WhatsApp aus ALEAPP: Namen, LID-Chats, Bestätigungen, Anrufe
+js/daten/aleapp-apps.js      Signal, Telegram, Threema, SMS, Google Messages und weitere
+js/daten/documents.js   Dokumente: Vorschau, Textauszug, Hintergrundlauf
+js/daten/translate.js   Übersetzung: Browser-API, Spracherkennung, Warteschlange, Speicher
+js/daten/transcribe.js  Sprachnachrichten: Audio aufbereiten, Verfahren wählen, speichern
+js/daten/transcribe-worker.js  Whisper im eigenen Thread (transformers.js/ONNX)
+
+js/ansicht/text.js      Text entschärfen, hervorheben, verlinken
+js/ansicht/suche.js     Suche über Text, Übersetzung, Transkript und Dokumentinhalt
+js/ansicht/medien.js    Medienkacheln, beim Sichtbarwerden geladen
+js/ansicht/liste.js     Seitenleiste: Filter und Chatliste
+js/ansicht/chat.js      Sprechblasen, Kopfzeile, Treffernavigation
+js/ansicht/details.js   Detailspalte mit Kennzahlen und Galerie
+js/ansicht/render.js    Fassade über die vier Zeichner
+
+js/bedienung/meldung.js          kurze Rückmeldungen
+js/bedienung/fortschritt.js      Fortschrittsleiste und Ladebalken
+js/bedienung/hilfe.js            Erklärfenster zum CSV-Format
+js/bedienung/import.js           Import von CSV, WhatsApp-Export und ALEAPP-Bericht, Ablegen per Maus, Export, Demodaten
+js/bedienung/whatsapp-import.js  Chatname und Datumsformat abfragen, WhatsApp-ZIPs lesen
+js/bedienung/medienordner.js     Medienordner verbinden, merken, trennen
+js/bedienung/uebersetzen.js      Bedienung der Übersetzung (🌐)
+js/bedienung/sprachnachrichten.js Bedienung der Transkription (🎤)
+js/bedienung/dokumente.js        Anhänge im Hintergrund durchsuchbar machen
+js/bedienung/lightbox.js         Großansicht für Bild, Video, PDF, Dokument
+js/app.js                        verbindet alles und startet
+
+modelle/quellen.json     Bauplan für das Spracherkennungsmodell
+modelle/                 das Modell selbst, wird beim ersten Start geladen (242 MB)
+vendor/transformers/     Laufzeit für das Modell (transformers.js und ONNX-WASM, 22 MB)
+vendor/pdfjs/            PDF.js für Vorschau und Textauszug (4 MB)
+hole-modell.py           lädt fehlende Modelldateien nach
+serve.py                 Webserver für macOS/Linux mit den nötigen MIME-Typen
+ChatVisualizer starten.cmd   Startdatei für Windows
+start.ps1                lokaler Webserver, nur Windows-Bordmittel
+start.sh                 dasselbe für macOS/Linux
+```
+
+In der Konsole steht `window.ChatVisualizer` mit `state`, `importFiles(files)`,
+`openConversation(key)`, `demoData()`, `pickMediaFolder()`, `attachMediaFiles(files)` und
+`media` zur Verfügung; die Pfadzuordnung prüft `media.lookup(pfad)`.
+
+## Platzbedarf
+
+Mit dem Spracherkennungsmodell belegt der Ordner rund 270 MB. Wer keine Sprachnachrichten
+transkribieren will, kann `modelle/` löschen und mit `-KeinModell` starten; im 🎤-Panel
+steht dann, dass kein Modell vorhanden ist.
+
+## Größenordnung
+
+50.000 Nachrichten in 20 Unterhaltungen: Import einschließlich Speichern rund 0,6 s, Laden
+beim Start rund 0,1 s, globale Suche rund 10 ms. Lange Chats werden in Blöcken von 400
+Nachrichten gezeichnet und beim Hochscrollen nachgeladen.
+
+## Lizenz
+
+Der ChatVisualizer steht unter der [MIT-Lizenz](LICENSE).
+
+Mitgelieferte Fremdbestandteile behalten ihre eigenen Lizenzen:
+
+| Bestandteil | Lizenz |
+| --- | --- |
+| `vendor/pdfjs/` – PDF.js (Mozilla) | Apache-2.0; Schriften und WASM-Decoder mit eigenen Lizenzdateien im selben Ordner |
+| `vendor/transformers/` – Transformers.js (Hugging Face) mit ONNX Runtime Web (Microsoft) | Apache-2.0 bzw. MIT |
+| Spracherkennungsmodell in `modelle/` (wird beim ersten Start geladen) | Apache-2.0, siehe `modelle/quellen.json` |
+| Beispielmedien in `beispiel-daten/medien/` | siehe `beispiel-daten/QUELLEN.md` |

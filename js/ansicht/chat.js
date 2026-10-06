@@ -83,7 +83,7 @@
     const gruppiert = prev && prev.sender === m.sender && prev.type !== 'system' &&
                       m.ts && prev.ts && (m.ts - prev.ts) < GRUPPE_MS && !m.replyTo;
     const geloescht = /(gelöscht|geloescht|deleted|zurückgezogen)/.test(norm(m.status));
-    const zeigeName = !eigen && !gruppiert && conv.senders.size > 2;
+    const zeigeName = !eigen && !gruppiert && conv.senders.size - (conv.senders.has('system') ? 1 : 0) > 2;
 
     const tr = Translate.get(m.key);
     const uebersetzt = !!(tr && tr.t);
