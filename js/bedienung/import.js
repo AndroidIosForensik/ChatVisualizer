@@ -79,6 +79,7 @@
     $('#importBusy').classList.add('show');
     let neu = 0, aktualisiert = 0, uebersprungen = 0, lauf = Date.now();
     const probleme = [];
+    const erkannt = new Set();           // Namen der erkannten Berichte/Tabellen
     const eingang = [];
     const kandidaten = [];
     const bericht = [];      // erkannte ALEAPP-Tabellen
@@ -116,10 +117,10 @@
           continue;
         }
         const { header, data } = CSV.toObjects(text);
-        const erkannt = Aleapp.erkenne(header);
-        if (erkannt) {
+        const aleappTabelle = Aleapp.erkenne(header);
+        if (aleappTabelle) {
           // Teil eines ALEAPP-Berichts: erst sammeln, dann je App gemeinsam auswerten
-          bericht.push(Object.assign({ name: datei.name, data }, erkannt));
+          bericht.push(Object.assign({ name: datei.name, data }, aleappTabelle));
           chatDateien.add(datei);
           continue;
         }
@@ -130,13 +131,14 @@
     }
 
     /* Zeilen einer Tabelle (eigene CSV oder zusammengeführter Bericht) übernehmen */
-    function zeilenUebernehmen(header, data, ersatzName, map) {
+    function zeilenUebernehmen(header, data, ersatzName, map, auswertung) {
       map = map || M.buildMapping(header).map;
       const vorkommen = new Map();
       for (let zeile = 0; zeile < data.length; zeile++) {
-        const m = M.rowToMessage(data[zeile], map, ersatzName, lauf++);
-        // Völlig leere Zeilen (kein Text, kein Medium, keine Reaktion) überspringen
-        if (!m.text && !m.media && !m.reactionTo && m.type === 'text') { uebersprungen++; continue; }
+        const m = M.rowToMessage(data[zeile], map, ersatzName, lauf++, auswertung || {});
+        // Völlig leere Zeilen (kein Text, kein Medium, keine Reaktion) überspringen –
+        // gelöschte Nachrichten nicht: dass es sie gab, ist selbst ein Befund
+        if (!m.text && !m.media && !m.reactionTo && m.type === 'text' && !m.deleted) { uebersprungen++; continue; }
         m.sourceOrder = zeile;   // gleiche Zeitstempel behalten die Reihenfolge der Datei
         if (!map.id || !String(data[zeile][map.id] || '').trim()) {
           // Ohne ID: stabile ID aus dem Inhalt, damit ein erneuter
@@ -155,41 +157,76 @@
     const berichtsApps = [];
     for (const satz of Aleapp.kombiniere(bericht)) {
       const vorher = eingang.length;
-      zeilenUebernehmen(satz.header, satz.data, satz.app);
+      zeilenUebernehmen(satz.header, satz.data, satz.app, null, { zone: 'UTC' });
       const eintrag = berichtsApps.find(b => b.app === satz.app);
       const abgeglichen = satz.abgeglichen ? { mit: satz.doppeltMit, anzahl: satz.abgeglichen } : null;
       if (eintrag) { eintrag.tabellen += satz.dateien.length; eintrag.nachrichten += eingang.length - vorher; }
       else berichtsApps.push({ app: satz.app, tabellen: satz.dateien.length, nachrichten: eingang.length - vorher, abgeglichen });
     }
 
+    // Übrige Dateien: iLEAPP, rohe Geräte-Datenbanken, eigenes Format, sonst nachfragen
     let uebergangen = 0;
     for (const t of tabellen) {
-      const { map, missingRequired, missing } = M.buildMapping(t.header);
-      if (missingRequired.length) {
-        // Aus einem Bericht oder Exportordner: Tabellen ohne Chats (Browser, WLAN,
-        // Konten …) und beliebige Textanhänge still übergehen.
-        const ausBericht = bericht.length > 0 || Aleapp.istBericht(t.header, t.pfad);
-        if ((/\.txt$/i.test(t.datei.name) || ausBericht) && (options.fromFolder || files.length > 1)) {
-          if (ausBericht) uebergangen++;
-          continue;
-        }
-        // Die erwarteten Spaltennamen zeigen, nicht die internen Feldnamen
-        probleme.push('<b>' + esc(t.datei.name) + '</b>: Pflichtspalten fehlen (' +
-          esc(missingRequired.map(spaltenName).join(', ')) +
-          ') – übersprungen. <button class="toast-link help-open">Welche Spalten braucht es?</button>');
-        uebersprungen += t.data.length;
-        continue;
-      }
-      chatDateien.add(t.datei);
-      if (missing.length) {
-        probleme.push('<b>' + esc(t.datei.name) + '</b>: empfohlene Spalten fehlen (' +
-          esc(missing.map(spaltenName).join(', ')) + ')');
-      }
+      let { header, data } = t;
+      const datei = t.datei;
+      const umgesetzt = Ileapp.umsetzen(header, data) || GeraeteDB.umsetzen(header, data);
+      if (umgesetzt) { ({ header, data } = umgesetzt); erkannt.add(umgesetzt.bericht); }
+      let { map, missingRequired, missing, utc } = M.buildMapping(header);
+      const auswertung = { zone: utc ? 'UTC' : '', festerChat: '' };
+
       // Fehlt die Messenger-Spalte, muss der Dateiname herhalten
-      const ersatzName = t.datei.name
+      let ersatzName = datei.name
         .replace(/\.(csv|txt|tsv)$/i, '')
         .replace(/[_\-.]?(export|chat|chats|messages|nachrichten|\d+)/gi, '').trim();
-      zeilenUebernehmen(t.header, t.data, ersatzName, map);
+
+      // Übrige Tabellen eines ALEAPP-Berichts (Browser, WLAN, Konten …) werden nie
+      // nachgefragt, sondern still übergangen – ebenso beliebige Textanhänge eines Exportordners.
+      const imBericht = /(^|[\\/])_TSV Exports[\\/]/i.test(String(t.pfad || '')) ||
+        (bericht.length > 0 && /\.tsv$/i.test(datei.name));
+      if (!umgesetzt && imBericht) { uebergangen++; continue; }
+      if (missingRequired.length && !umgesetzt && (options.fromFolder || files.length > 1) &&
+          (/\.txt$/i.test(datei.name) || Aleapp.istBericht(header, t.pfad))) {
+        if (Aleapp.istBericht(header, t.pfad)) uebergangen++;
+        continue;
+      }
+
+      /* Fremde Spalten: einmal nachfragen, die Antwort gilt dann für alle
+         Dateien mit denselben Spalten. Das eigene Format geht ohne Frage durch. */
+      if (!umgesetzt) {
+        const gemerkt = Spaltenzuordnung.gemerkt(header);
+        let wahl = gemerkt;
+        if (!wahl && Spaltenzuordnung.noetig(header, map, missingRequired)) {
+          wahl = await Spaltenzuordnung.fragen({ datei: t.pfad || datei.name, header, data, map,
+            zone: auswertung.zone, messenger: ersatzName });
+          // „Überspringen" gilt auch dann, wenn die Datei sich importieren ließe
+          if (!wahl && !missingRequired.length) {
+            probleme.push('<b>' + esc(datei.name) + '</b>: beim Zuordnen übersprungen');
+            uebersprungen += data.length;
+            continue;
+          }
+        }
+        if (wahl) {
+          ({ map, missingRequired, missing } = M.pruefeMapping(wahl.map, wahl.festerChat));
+          auswertung.zone = wahl.zone;
+          auswertung.festerChat = wahl.festerChat;
+          if (wahl.messenger) ersatzName = wahl.messenger;
+        }
+      }
+
+      if (missingRequired.length) {
+        // Die erwarteten Spaltennamen zeigen, nicht die internen Feldnamen
+        probleme.push('<b>' + esc(datei.name) + '</b>: Pflichtspalten fehlen (' +
+          esc(missingRequired.map(spaltenName).join(', ')) +
+          ') – übersprungen. <button class="toast-link help-open">Welche Spalten braucht es?</button>');
+        uebersprungen += data.length;
+        continue;
+      }
+      chatDateien.add(datei);
+      if (missing.length) {
+        probleme.push('<b>' + esc(datei.name) + '</b>: empfohlene Spalten fehlen (' +
+          esc(missing.map(spaltenName).join(', ')) + ')');
+      }
+      zeilenUebernehmen(header, data, ersatzName, map, auswertung);
     }
 
     const anhaenge = files.filter(f => !chatDateien.has(f) && !/\.(csv|tsv|zip)$/i.test(f.name));
@@ -239,6 +276,7 @@
         (!b.nachrichten && !b.abgeglichen ? ', keine Nachrichten enthalten' : '') + ')').join(', ') +
         (uebergangen ? ' · ' + uebergangen + ' weitere Tabellen ohne Chats übergangen' : '') + '</span>';
     }
+    if (erkannt.size) text += '<br><span class="toast-note">Erkannt: ' + esc(Array.from(erkannt).join(', ')) + '</span>';
     if (probleme.length) text += '<br><span class="toast-note">' + probleme.slice(0, 4).join('<br>') + '</span>';
     Meldung.zeige(text, probleme.length ? 'warn' : 'ok');
 
@@ -303,24 +341,7 @@
 
   /* ---- Export --------------------------------------------------------- */
 
-  /** Einen Chat als lesbare Textdatei sichern. */
-  function exportiereChat(conv) {
-    const ich = M.whoAmI(conv.key);
-    const zeilen = ['# ' + conv.title + ' (' + Messengers.brand(conv.messenger).label + ' · ' + conv.conv + ')', ''];
-
-    for (const m of conv.messages) {
-      const zeit = m.ts
-        ? M.DT_DATE.format(new Date(m.ts)) + ' ' + M.DT_TIME.format(new Date(m.ts))
-        : (m.tsRaw || '');
-      const wer = m.sender === ich ? m.sender + ' (du)' : m.sender;
-      let inhalt = m.text || '';
-      if (m.media) inhalt = (inhalt ? inhalt + ' ' : '') + '[' + m.type + ': ' + m.media + ']';
-      if (m.reactions) inhalt += ' {' + m.reactions.map(r => r.text + ' ' + r.sender).join(', ') + '}';
-      zeilen.push('[' + zeit + '] ' + wer + ': ' + inhalt);
-    }
-
-    Helfer.download(conv.messenger + '_' + conv.conv.replace(/[^\w.-]+/g, '_') + '.txt', zeilen.join('\n'));
-  }
+  /* Einen einzelnen Chat exportiert bedienung/pdf-bericht.js als PDF. */
 
   /** Alle Nachrichten als JSON sichern (ohne Hilfsfelder). */
   function exportiereAllesJSON() {
@@ -419,11 +440,7 @@
       verarbeiteAblage(e.dataTransfer);
     });
 
-    // Export
-    $('#exportChat').addEventListener('click', () => {
-      const conv = state.convByKey.get(state.activeConv);
-      if (conv) exportiereChat(conv);
-    });
+    // Export aller Daten (der einzelne Chat: PdfBericht)
     $('#exportAll').addEventListener('click', exportiereAllesJSON);
 
     // Alles löschen
@@ -442,7 +459,7 @@
   global.Import = {
     importiereDateien: importiereDateien, speichere: speichere,
     verarbeiteAblage: verarbeiteAblage, demodaten: demodaten,
-    exportiereChat: exportiereChat, exportiereAllesJSON: exportiereAllesJSON,
+    exportiereAllesJSON: exportiereAllesJSON,
     verdrahten: verdrahten
   };
 })(window);

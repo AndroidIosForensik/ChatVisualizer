@@ -40,6 +40,19 @@
 }
 .tr-field select:focus, .tr-field input:focus { border-color: var(--accent); }
 
+/* Sprachwahl: Von ⇄ Nach */
+.tr-sprachen { display: flex; align-items: flex-end; gap: 6px; margin: 12px 0 0; }
+.tr-sprache { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--text-3); }
+.tr-sprache select {
+  width: 100%; border: 1px solid var(--line); background: var(--bg-3); color: var(--text);
+  border-radius: 8px; padding: 6px 7px; font-size: 12.5px; outline: none;
+}
+.tr-sprache select:focus { border-color: var(--accent); }
+.tr-swap { width: 30px; height: 30px; flex: none; }
+.tr-swap:disabled { opacity: .35; cursor: not-allowed; }
+.tr-sprach-hinweis { margin: 6px 0 10px; font-size: 11.5px; line-height: 1.45; color: var(--text-3); min-height: 1em; }
+.tr-sprach-hinweis.warn { color: var(--warn); }
+
 .tr-check {
   display: flex; align-items: flex-start; gap: 7px;
   margin-top: 10px; font-size: 12px; color: var(--text-2); cursor: pointer;

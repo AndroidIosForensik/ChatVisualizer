@@ -5,12 +5,13 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 function setup() {
-  const blobs = new Map(), revoked = [];
+  const blobs = new Map(), revoked = [], settings = new Map();
   let next = 0;
   const ctx = vm.createContext({ Blob, File, TextDecoder, console, setTimeout, clearTimeout,
     URL: { createObjectURL(blob) { const id = 'blob:test-' + next++; blobs.set(id, blob); return id; },
       revokeObjectURL(url) { revoked.push(url); } },
-    Store: { settings: { get: (_, fallback) => fallback } }
+    Store: { settings: { get: (k, fallback) => settings.has(k) ? settings.get(k) : fallback,
+      set: (k, v) => settings.set(k, v) } }
   });
   ctx.window = ctx;
   for (const name of ['kern/helfer', 'kern/model', 'daten/media', 'ansicht/medien']) {
@@ -50,6 +51,35 @@ test('Relative Dateipfade maskieren #, %, ?, Umlaute und Leerzeichen korrekt', (
   assert.equal(ctx.Helfer.direkteURL('medien/frage?.png'), 'medien/frage%3F.png');
   assert.equal(ctx.Helfer.direkteURL('https://example.com/bild.png'), null);
   assert.equal(ctx.Helfer.direkteURL(''), null);
+});
+
+test('Medien aus dem Internet: Endung trotz ?Parametern, erst nach Freigabe geladen, lokale Kopie geht vor', async () => {
+  const { ctx } = setup();
+  const url = 'https://static.klipy.com/ii/925f/45/75/S9NF3adi.gif';
+  assert.equal(ctx.Helfer.externeURL(url), url);
+  assert.equal(ctx.Helfer.externeURL('medien/bild.gif'), null);
+  assert.equal(ctx.Media.extOf(url + '?w=200#x'), 'gif');
+  assert.equal(ctx.Media.extOf('medien/frage?.png'), 'png');            // lokal gehört ? zum Namen
+  assert.equal(ctx.Medienansicht.artVon({ type: 'bild', media: url }), 'animation');
+
+  // Ohne Freigabe keine Anfrage ins Netz
+  assert.equal(ctx.Media.istExtern(url), true);
+  assert.equal(await ctx.Media.getDisplayURL(url), null);
+  // Einzeln freigegeben
+  ctx.Media.erlaubeExtern(url);
+  assert.equal(await ctx.Media.getDisplayURL(url), url);
+  // Dauerhaft freigegeben gilt auch für andere Links
+  const andere = 'https://media.tenor.com/abc/kuss.gif';
+  assert.equal(await ctx.Media.getDisplayURL(andere), null);
+  ctx.Media.setzeExternImmer(true);
+  assert.equal(await ctx.Media.getDisplayURL(andere), andere);
+  ctx.Media.setzeExternImmer(false);
+  assert.equal(await ctx.Media.getDisplayURL(andere), null);
+
+  // Liegt die Datei im Medienordner, wird sie lokal gezeigt – ohne Netz
+  ctx.Media.attachFileList([new File(['GIF89a'], 'kuss.gif', { type: 'image/gif' })]);
+  assert.equal(ctx.Media.istExtern(andere), false);
+  assert.match(await ctx.Media.getDisplayURL(andere), /^blob:test-/);
 });
 
 test('Dateizuordnung gleicht Unicode-Schreibweisen und geschützte Leerzeichen ab', () => {

@@ -23,6 +23,7 @@
     if (!q) return false;
     if (norm(m.text).indexOf(q) !== -1 ||
         norm(m.sender).indexOf(q) !== -1 ||
+        (m.senderName && norm(m.senderName).indexOf(q) !== -1) ||
         norm(m.media).indexOf(q) !== -1) return true;
 
     const tr = Translate.get(m.key);
@@ -77,11 +78,17 @@
   /** Einzeilige Zusammenfassung einer Nachricht (Chatliste, Antwortzitat). */
   function vorschauText(m) {
     if (!m) return 'Keine Nachrichten';
+    if (m.reactionTo && window.Emoji) return 'Reaktion ' + Emoji.reaktion(m.text);
+    if (m.type === 'anruf') {
+      const a = Model.anruf(m);
+      return (m.video ? '🎥 ' : '📞 ') + a.art + ' ' + a.richtung + (a.info ? ' · ' + a.info : '');
+    }
     const symbol = TYP_SYMBOL[m.type] || '';
     const transkript = window.Transcribe ? Transcribe.text(m.key) : '';
     const t = (m.text || transkript || '').replace(/\s+/g, ' ').trim();
     if (t) return symbol + t;
     if (symbol) return symbol + (TYP_NAME[m.type] || 'Anhang');
+    if (m.deleted) return '🚫 Nachricht gelöscht';
     return m.type === 'system' ? 'Systemnachricht' : '(leer)';
   }
 

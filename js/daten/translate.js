@@ -11,7 +11,9 @@
     sv: 'Schwedisch', da: 'Dänisch', no: 'Norwegisch', fi: 'Finnisch', el: 'Griechisch',
     zh: 'Chinesisch', ja: 'Japanisch', ko: 'Koreanisch', hi: 'Hindi', fa: 'Persisch',
     he: 'Hebräisch', vi: 'Vietnamesisch', th: 'Thai', id: 'Indonesisch', sr: 'Serbisch',
-    hr: 'Kroatisch', bg: 'Bulgarisch', sq: 'Albanisch'
+    hr: 'Kroatisch', bg: 'Bulgarisch', sq: 'Albanisch', sk: 'Slowakisch', sl: 'Slowenisch',
+    lt: 'Litauisch', bn: 'Bengalisch', ta: 'Tamil', te: 'Telugu', mr: 'Marathi', kn: 'Kannada',
+    'zh-Hant': 'Chinesisch (traditionell)'
   };
 
   const settings = {
@@ -19,9 +21,30 @@
     skipTarget: Store.settings.get('trSkipTarget', true)
   };
 
+  /* Ausgangssprache je Chat: convKey → Sprachcode. Fehlt der Eintrag,
+     wird die Sprache jeder Nachricht erkannt („automatisch"). */
+  const quellen = Store.settings.get('trSourceByConv', {}) || {};
+
   function saveSettings() {
     Store.settings.set('trTarget', settings.target);
     Store.settings.set('trSkipTarget', settings.skipTarget);
+    Store.settings.set('trSourceByConv', quellen);
+  }
+
+  /** Fest gewählte Ausgangssprache eines Chats, '' = automatisch erkennen. */
+  function sourceFor(convKey) {
+    return (convKey && quellen[convKey]) || '';
+  }
+
+  function setSource(convKey, code) {
+    if (!convKey) return;
+    if (code) quellen[convKey] = code; else delete quellen[convKey];
+    saveSettings();
+  }
+
+  /** Sprachname für Meldungen (Code, wenn unbekannt). */
+  function sprachName(code) {
+    return LANGS[code] || (code ? code.toUpperCase() : '');
   }
 
   /* ------------------------------------------------------------------ *
@@ -207,12 +230,15 @@
 
     supported() { return 'Translator' in global && !this.blocked; },
 
-    async ready() {
+    /** Bietet der Browser das Sprachpaar an? Ohne feste Quelle wird en → Ziel geprüft. */
+    async ready(src) {
       if (!this.supported()) return false;
+      const quelle = src && src !== settings.target ? src : (settings.target === 'en' ? 'de' : 'en');
       try {
+        // Der erste Aufruf nach dem Browserstart braucht mitunter deutlich länger
         const a = await withTimeout(
-          Translator.availability({ sourceLanguage: 'en', targetLanguage: settings.target }),
-          6000, 'Verfügbarkeit');
+          Translator.availability({ sourceLanguage: quelle, targetLanguage: settings.target }),
+          15000, 'Verfügbarkeit');
         return a !== 'unavailable';
       } catch (e) {
         this.blocked = true;     // API vorhanden, antwortet aber nicht
@@ -255,28 +281,57 @@
   /* ------------------------------------------------------------------ *
    * Verfügbarkeit
    * ------------------------------------------------------------------ */
-  const status = { ok: false, detail: '', checking: false };
+  const status = { ok: false, detail: '', checking: false, paar: '' };
 
-  async function check(force) {
-    if (status.ok && !force) return true;
+  /**
+   * Ist die Übersetzung einsatzbereit – für die feste Ausgangssprache src,
+   * falls gewählt? Das Ergebnis gilt je Sprachpaar.
+   */
+  async function check(force, src) {
+    const paar = (src || 'auto') + '>' + settings.target;
+    if (status.ok && !force && status.paar === paar) return true;
+    // Eine frühere Zeitüberschreitung sperrt nicht für immer: neu prüfen erlaubt neuen Versuch
+    if (force) builtin.blocked = false;
     status.checking = true;
+    status.paar = paar;
     try {
       if (!('Translator' in global)) {
         status.ok = false;
         status.detail = 'Dieser Browser übersetzt nicht selbst – Chrome oder Edge ab Version 138 nutzen';
-      } else if (await builtin.ready()) {
+      } else if (await builtin.ready(src)) {
         status.ok = true;
         status.detail = 'Browser-Übersetzung, on-device';
       } else {
         status.ok = false;
         status.detail = builtin.blocked
           ? 'Die Übersetzung des Browsers antwortet nicht'
-          : 'Diese Zielsprache bietet der Browser nicht an';
+          : src
+            ? 'Das Sprachpaar ' + sprachName(src) + ' → ' + sprachName(settings.target) + ' bietet der Browser nicht an'
+            : 'Diese Zielsprache bietet der Browser nicht an';
       }
     } finally {
       status.checking = false;
     }
     return status.ok;
+  }
+
+  /**
+   * Sprachpaket gleich beim Klick anfordern. Chrome lädt ein fehlendes Paket nur
+   * kurz nach einer Nutzeraktion; läuft vorher die Spracherkennung, ist dieses
+   * Zeitfenster oft schon vorbei. Deshalb aus dem Klick heraus aufrufen.
+   */
+  function vorbereiten(conv) {
+    if (!('Translator' in global) || !conv) return;
+    const src = sourceFor(conv.key) || convLang.get(conv.key);
+    if (src && src !== settings.target) builtin.instance(src, settings.target).catch(() => {});
+  }
+
+  /* Chrome verweigert das Laden eines Sprachpakets ohne vorherigen Klick */
+  function klarerFehler(e) {
+    if (e && e.name === 'NotAllowedError') {
+      return new Error('Das Sprachpaket muss per Klick geladen werden – bitte noch einmal auf 🌐 klicken');
+    }
+    return e;
   }
 
   /* ------------------------------------------------------------------ *
@@ -288,19 +343,29 @@
     const existing = get(m.key);
     if (existing) return existing;
 
-    if (!await check()) throw new Error(status.detail);
+    const fest = sourceFor(conv && conv.key);
+    if (!await check(false, fest)) throw new Error(status.detail);
 
-    const src = m.lang || await detect(source) || await conversationLanguage(conv, m);
-    if (src) m.lang = src;
+    // Erkannt wird auch bei fester Ausgangssprache, sofern Nachrichten in der
+    // Zielsprache übersprungen werden sollen (etwa eigene Antworten im Chat).
+    let erkannt = null;
+    if (!fest || settings.skipTarget) {
+      erkannt = m.lang || await detect(source);
+      if (erkannt) m.lang = erkannt;
+    }
+    const src = fest || erkannt || await conversationLanguage(conv, m);
 
-    if (settings.skipTarget && src === settings.target) {
-      const entry = { t: null, s: src, b: 'skip' };
+    // Schon in der Zielsprache: nichts zu tun (gleiche Sprache kann der Browser nicht)
+    if (src === settings.target || (settings.skipTarget && erkannt === settings.target)) {
+      const entry = { t: null, s: erkannt || src, b: 'skip' };
       put(m.key, entry);
       return entry;
     }
-    if (!src) throw new Error('Sprache nicht erkannt');
+    if (!src) throw new Error('Sprache nicht erkannt – Ausgangssprache im Panel (▾) fest wählen');
 
-    const text = await builtin.translate(source, src, settings.target);
+    let text;
+    try { text = await builtin.translate(source, src, settings.target); }
+    catch (e) { throw klarerFehler(e); }
     const entry = {
       t: (text && text.trim() && text.trim() !== source.trim()) ? text.trim() : null,
       s: src,
@@ -326,7 +391,7 @@
     job.total = list.length;
     if (onUpdate) onUpdate(job);
 
-    if (!await check()) {
+    if (!await check(false, sourceFor(conv.key))) {
       job.active = false; job.error = status.detail;
       if (onUpdate) onUpdate(job);
       return job;
@@ -364,6 +429,8 @@
 
   global.Translate = {
     LANGS: LANGS, settings: settings, saveSettings: saveSettings,
+    sourceFor: sourceFor, setSource: setSource, sprachName: sprachName, vorbereiten: vorbereiten,
+    erkannteSprache: convKey => convLang.get(convKey) || null,
     load: load, get: get, flush: flush, clearFor: clearFor, clearAll: clearAll,
     translatable: translatable, detect: detect, sourceText: sourceText,
     conversationLanguage: conversationLanguage, forgetLanguages: () => convLang.clear(),

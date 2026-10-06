@@ -3,8 +3,9 @@
 
 /* ------------------------------------------------------------------ Schmale Fenster */
 @media (max-width: 1100px) {
-  #app:has(.details.open) { grid-template-columns: 300px minmax(0, 1fr) 290px; }
-  #app { grid-template-columns: 300px minmax(0, 1fr) 0; }
+  /* Eine von Hand gezogene Breite steht als Inline-Stil am #app und gilt weiter */
+  #app { --seite: 300px; }
+  #app:has(.details.open) { grid-template-columns: var(--seite) minmax(0, 1fr) 290px; }
 }
 
 @media (max-width: 820px) {
@@ -15,6 +16,7 @@
   }
   .chat-pane.open { transform: none; }
   .icon-btn.back { display: inline-grid; }
+  .seiten-griff { display: none; }
   .me-select { display: none; }
   .details.open {
     position: fixed; inset: 0; z-index: 30;

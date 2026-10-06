@@ -63,10 +63,12 @@
 
   /* Whisper braucht die Ausgangssprache: ohne Angabe setzt die Laufzeit hart auf
      Englisch und übersetzt dann, statt zu transkribieren. Die Sprache kommt deshalb
-     aus den Textnachrichten derselben Unterhaltung (siehe translate.js). */
+     aus den Textnachrichten derselben Unterhaltung (siehe translate.js) – oder,
+     falls dort für den Chat eine Ausgangssprache fest gewählt ist, aus dieser. */
   async function guessLanguage(conv, m) {
     if (settings.language !== 'auto') return settings.language;
-    return (await Translate.conversationLanguage(conv, m)) || Translate.settings.target;
+    return (conv && Translate.sourceFor(conv.key).split('-')[0]) ||   // zh-Hant → zh
+      (await Translate.conversationLanguage(conv, m)) || Translate.settings.target;
   }
 
   const PROMPT = 'Transkribiere diese Sprachnachricht wortgetreu. ' +

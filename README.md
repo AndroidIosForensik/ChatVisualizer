@@ -63,7 +63,8 @@ Another model can be added there following the same pattern.
 | Documents | PDFs show a page preview, Word/Excel/text a short excerpt; a click opens the content. All documents are read in the background and become searchable |
 | Voice messages | **🎤** in the chat header transcribes all voice messages of the chat, 🎤 on a bubble only that one |
 | Translate | **🌐** in the chat header translates the whole chat, 🌐 on a bubble only that one. The original stays visible below |
-| Settings for both | the **▾** next to 🎤 or 🌐: target language, method, model, delete transcripts |
+| Settings for both | the **▾** next to 🎤 or 🌐: source and target language, method, model, delete transcripts |
+| Local time / UTC | Switch **Ortszeit** (local time) in the sidebar: shows all times in UTC (bubbles, day separators, chat list, details, text export). The tooltip of each time also gives the other view. The choice is remembered |
 | Progress | During a run a bar above the chat shows the state, e.g. „Übersetzt… 12 / 14" (translated). It stays visible with the panel closed and can be cancelled there |
 | Search (all chats) | Field at the top left, `Ctrl+K`. Shows the number of hits per chat; a click jumps to the hit |
 | Search (in chat) | Magnifier in the chat header, `Ctrl+F`, step through hits with `Enter` and `Shift+Enter` |
@@ -71,7 +72,7 @@ Another model can be added there following the same pattern.
 | Sort | Select box above the chat list: newest, oldest, most messages, name |
 | Set your own side | **Ich:** („me") in the chat header. This person appears on the right in blue |
 | Details and statistics | ⓘ at the top right: participants, period, message types, media |
-| Export | ⤓ in the chat header exports the chat as text, ⤓ in the sidebar everything as JSON |
+| Export | ⤓ in the chat header exports the chat as a **PDF report** (see below), ⤓ in the sidebar everything as JSON |
 | Light and dark | ◐ in the sidebar |
 | Delete everything | 🗑 in the sidebar |
 
@@ -81,13 +82,16 @@ as a message of their own.
 
 ## Supported sources
 
-There are three ways into the ChatVisualizer, none of them asks about columns:
+These are the ways into the ChatVisualizer; only for unknown columns does the import ask once:
 
 | Source | What you drop in | What happens |
 | --- | --- | --- |
 | **ALEAPP report** | the whole report folder (`ALEAPP_Reports_…` or `ALEAPP_Output_…`) or the TSV files from `_TSV Exports` | The tables of each app are recognised and **combined**: names, attachments, calls, system events, read receipts, reactions. All other tables of the report (browser, Wi-Fi, accounts …) are skipped silently. |
 | **WhatsApp text export** | TXT, ZIP with media or the unpacked folder (Android and iPhone) | see [WhatsApp text exports with media](#whatsapp-text-exports-with-media) |
-| **Your own CSV/TSV** | CSV or TSV files, e.g. from SQL queries on app databases | see [CSV format](#csv-format) |
+| **iLEAPP report** | report folder or TSV files from `_TSV Exports` | see [iLEAPP reports](#ileapp-reports) |
+| **SQL export from device databases** | CSV with the raw column names (`ZWAMESSAGE`, `message`, `sms.db` …) | see [SQL exports from device databases](#sql-exports-from-device-databases) |
+| **Your own CSV/TSV** | CSV or TSV files in the ChatVisualizer column format | see [CSV format](#csv-format) |
+| **Other CSV** | any columns | dialog **Spalten zuordnen** (map columns), see [Other formats](#other-formats-mapping-columns) |
 
 ### Chat apps from ALEAPP reports
 
@@ -105,6 +109,7 @@ but without a real device.
 | **Google Messages** | GoogleMessages – matched against SMS/MMS, see below | real report |
 | **Telegram** | Messages, Chats | recognised¹ |
 | **Threema** | Messages, Contacts | recognised¹ |
+| **Phone** | Call logs (calllog.db), Call Logs (contacts2.db) – one chat per phone number: incoming, outgoing, missed, rejected, voicemail | ALEAPP columns |
 | Facebook Messenger | Chats (msys_database), Chats (threads_db2) | ALEAPP columns |
 | Instagram | Direct Messages | ALEAPP columns |
 | Snapchat | Messages (arroyo.db), Messages | ALEAPP columns |
@@ -128,8 +133,9 @@ contained).
   however, states the time and text of its message – which reveals the chat behind the
   identifier. This puts system events and reactions into the right chat.
 - **Ticks:** your own messages with a read receipt show ✓✓ in blue, otherwise ✓✓.
-- **Calls:** a call from the call log that also appears in the chat history gets its type
-  and duration there („Sprachanruf · 2:13 min", voice call) and does not show up twice.
+- **Calls:** calls appear as a call card in the chat. A call from the call log that also
+  appears in the chat history gets its duration and video flag there and does not show up
+  twice.
 - **Attachments:** the copy in the report folder (`media/…`) is preferred, otherwise the
   path on the device. If the whole report folder is dropped in, images and videos are
   available right away.
@@ -137,7 +143,8 @@ contained).
   present, each message is kept once: the delivery status from SMS, the contact names from
   Google Messages; messages only found in Google Messages (RCS) go into the same chat.
 - **Nothing disappears silently:** messages without text and file appear as a note
-  („Systemmeldung", „Anruf", „WhatsApp-Nachrichtentyp 7 (ohne Inhalt)").
+  („Systemmeldung", „WhatsApp-Nachrichtentyp 7 (ohne Inhalt)"), calls as a call card and
+  deleted messages with a note.
 - **Times:** ALEAPP writes UTC, even without a time zone; times are read as UTC and shown
   in local time.
 - **Repeated import:** importing the same report twice creates no duplicates.
@@ -157,6 +164,12 @@ entries.
 - Older ALEAPP versions without `jid_map` resolution drop one-to-one chats with an `…@lid`
   identifier from the report „WhatsApp - One To One Messages" entirely. Then only SQL
   queries on the database itself help.
+- One-to-one chats without a JID in the report are held together by the partner's name,
+  groups by the group name: two contacts or groups with the same name merge.
+- ALEAPP does not report the outcome of a WhatsApp call (missed, rejected); a call without a
+  duration appears as „keine Verbindung" (no connection).
+- A WhatsApp text export (TXT/ZIP) of the same chat is not merged with the ALEAPP data but
+  appears as a separate chat.
 - Reactions are only available for WhatsApp; edits are marked with „(bearbeitet)" (edited).
 
 ## WhatsApp text exports with media
@@ -199,6 +212,72 @@ supported.
 
 A small example is in `tests/fixtures/WhatsApp Chat mit Importtest.txt`. The attachments
 mentioned there are in `beispiel-daten/medien/`.
+
+## iLEAPP reports
+
+Same as with ALEAPP: import TSV files from `_TSV Exports` individually or drop the report
+folder. Times are treated as UTC.
+
+| Report | Messenger | Note |
+| --- | --- | --- |
+| `SMS & iMessage` (sms.db) | iMessage, SMS, RCS | Apple creates a separate chat per service, which is kept; read status and ROWID as source |
+| `WhatsApp - Messages` (ChatStorage.sqlite) | WhatsApp | also older iLEAPP versions without a direction column („Local User"); in groups the report names only the group, not the member |
+| `Threema - Chats` | Threema | ballots appear as polls |
+| `Signal - Messages` | Signal | „Remotely Deleted" is marked as deleted |
+| `Telegram Messages` | Telegram | actions without text appear as system messages |
+| `WhatsApp - Call History` | WhatsApp | calls in the same chat as the messages (same JID), with missed/rejected and video |
+| `Call History` | Phone, FaceTime, WhatsApp | iPhone call history; unanswered incoming calls count as missed |
+
+## SQL exports from device databases
+
+If you query the databases yourself (DB Browser for SQLite, `sqlite3 -csv` …) and save the
+result as CSV, nothing needs to be renamed. The raw column names of these tables are
+recognised:
+
+| Database | Table | recognised by |
+| --- | --- | --- |
+| WhatsApp iPhone `ChatStorage.sqlite` | `ZWAMESSAGE` | `ZMESSAGEDATE`, `ZISFROMME` |
+| WhatsApp Android `msgstore.db` | `message` | `chat_row_id`, `from_me` |
+| WhatsApp Android `msgstore.db` (old) | `messages` | `key_remote_jid`, `key_from_me` |
+| iPhone `sms.db` | `message` | `guid`, `is_from_me`, `date` |
+| Android `mmssms.db` | `sms` | `thread_id`, `address`, `body`, `type` |
+| Android `calllog.db` | `calls` | `number`, `date`, `duration`, `type` |
+| WhatsApp Android `msgstore.db` | `call_log` | `call_id`, `video_call`, `duration`, `from_me` |
+| iPhone `CallHistory.storedata` | `ZCALLRECORD` | `ZADDRESS`, `ZORIGINATED`, `ZDATE`, `ZDURATION` |
+| WhatsApp iPhone `CallHistory.sqlite` | `ZWACDCALLEVENT` | `ZOUTCOME`, `ZDURATION`, `ZDATE` |
+
+For WhatsApp calls from SQL exports to end up in the chat of the messages, both queries
+need the same chat identifier. On the iPhone that is `ZCONTACTJID` or
+`ZJIDSTRING`/`ZGROUPJIDSTRING`, on Android `jid.raw_string` as column `chat_jid`. Otherwise
+they appear next to it under their row number (`jid_row_id …`). With `ZWACDCALLEVENT` the
+direction only follows from `ZINCOMING` in `ZWAAGGREGATECALLEVENT`; without it a call
+counts as incoming.
+
+Columns from a JOIN are taken along if they are part of the query, for example
+`ZPARTNERNAME`, `ZCONTACTJID`, `ZMEMBERJID` and `ZMEDIALOCALPATH` for iPhone WhatsApp,
+`chat_jid`, `sender_jid` and `file_path` for Android WhatsApp, or `chat_identifier`,
+`display_name` and `filename` for `sms.db`. Without them the row numbers of the database
+remain as chat identifier (`ZCHATSESSION 3`, `chat_row_id 2`). The chats are still
+separated correctly, just without names. `NULL` counts as empty. Every message carries its
+origin (database, table, row) in the tooltip of its time.
+
+Times stay numbers; no conversion in SQL is needed: Apple seconds, Apple nanoseconds
+(`sms.db` from iOS 11) and Unix milliseconds are recognised by the import from the number
+of digits.
+
+## Other formats: mapping columns
+
+If a CSV has columns the ChatVisualizer does not know, the dialog **Spalten zuordnen** (map
+columns) appears during import. The recognised columns are preselected, with example values
+next to them. In addition you can set:
+
+- the time zone for times without a zone (local time, UTC, Europe/Berlin or any zone),
+- a fixed chat name for files without a chat column, for example the SQL export of a single
+  chat,
+- the messenger, if no column names it.
+
+A **time sample** shows the first time as local time and as UTC before importing. The answer
+applies to all files with the same columns. It can be forgotten in the help dialog (**?**).
 
 ## CSV format
 
@@ -249,6 +328,38 @@ Messages are kept unique via `messenger + nachricht_id`, without an ID column vi
 time, sender and content. Importing the same file twice therefore creates no duplicates but
 updates the existing messages.
 
+## Chat as a PDF report
+
+⤓ in the chat header opens the dialog **Chat als PDF ausgeben** (output chat as PDF). There
+you can set:
+
+- the period (from/to, in the time zone currently shown),
+- a case number or note,
+- whether images are embedded,
+- whether translations, transcripts and technical details per message (ID, raw time value,
+  source) are included,
+- with an active chat search: only the hits.
+
+**PDF erstellen** (create PDF) opens the browser's print dialog; choose **„Save as PDF"**
+there. The suggested file name is „Chat <title> <date>".
+
+The report consists of a cover page and the history:
+
+- **Cover page:** messenger, chat identifier, participants with name and identifier, period,
+  count, time zone, filter, sources, creation time and a SHA-256 checksum over the included
+  messages. The same data gives the same checksum.
+- **History:** bubbles as in the program, with date and time to the second.
+- **Header and footer:** chat name, note and „Seite X von Y" (page X of Y).
+
+Translations and transcripts always follow the original text and are marked as machine
+generated. Deleted messages carry a note. Images are embedded in reduced size (at most 500
+per report); other attachments appear with file name and path.
+
+Why the print dialog? A custom PDF generator would have to ship fonts for Cyrillic, Arabic,
+Chinese and emoji. This way the browser uses the system fonts, and nothing leaves the
+computer. Switch off the browser's „Headers and footers" in the print dialog, otherwise they
+overlay the report's own.
+
 ## Translation
 
 Messages in other languages can be translated into German or another language. This runs
@@ -260,7 +371,15 @@ It is operated via **🌐** in the chat header. One click translates the whole c
 translated messages are skipped.
 
 - Progress is shown above the chat and can be cancelled there.
-- The **▾** next to it opens the settings: target language, delete.
+- The **▾** next to it opens the settings: **Von** (from, source language per chat) and
+  **Nach** (to, target language for all chats), with ⇄ in between to swap them, plus delete.
+- Source language „Automatisch erkennen" (detect automatically) is the normal case. If it is
+  fixed for a chat, every message of that chat counts as written in that language.
+  Exception: with „skip messages already in the target language" switched on, your own
+  German replies, for example, stay untranslated. This helps with short messages and with
+  languages that detection confuses (Russian/Ukrainian, Serbian/Croatian …). The fixed
+  choice also applies to transcribing voice messages in the same chat. When it changes,
+  translations made from a different source language are discarded.
 - Single message: 🌐 appears when hovering over a bubble, ↩ undoes the translation.
 - Translations are stored, available immediately after a restart and included in the
   search. Quoted replies also show the translation.
@@ -280,7 +399,11 @@ panel says so. All calls run with a time limit so that the interface does not ha
 Nothing is installed or shipped for translation; the browser does it. The model in the
 `modelle/` folder is only used for speech recognition.
 
-Further switches in the panel: target language, „Nachrichten in der Zielsprache
+If the browser first has to download a language pack, Chrome requires a fresh click for
+it. The pack is therefore requested right when 🌐 is clicked, before language detection. If
+it still fails, the message says that another click is needed.
+
+Further switches in the panel: „Nachrichten, die schon in der Zielsprache sind,
 überspringen" (skip messages already in the target language) and deleting all translations
 of the chat. Pure emoji and link messages are not translated.
 
@@ -365,6 +488,26 @@ Files that are not found remain visible as a tile with their path; a click copie
 If the browser cannot display an existing attachment or play its codec, a message appears
 with a link to save the original file. The local Windows and Python servers support range
 requests for loading and seeking. Restart the server after updating the start scripts.
+
+### Media from the internet (GIF links)
+
+If the media path contains an `http(s)` link, for example for GIFs from Klipy, Tenor or
+Giphy, the chat embeds the image, GIF, video or sound directly and shows the link below it.
+If the link is already in the message text, it does not appear twice. A link may have
+`?parameters`; the file type is still taken from the extension.
+
+Loading only happens after **approval by click**, because the remote server sees the IP
+address of the analysis computer. In an investigation that may be noticed. The tile offers
+two buttons:
+
+- **Laden** (load) approves only this file.
+- **Externe Medien immer laden** (always load external media) approves all. This can be
+  revoked in the help dialog (**?**).
+
+If the same file is in the connected media folder, the local copy is shown, without any
+network access.
+
+In the PDF report, approved internet images are embedded as well, with the full link below.
 
 ### Documents: preview and search
 
@@ -456,12 +599,16 @@ js/kern/store.js        IndexedDB (one entry per conversation) and settings
 js/kern/model.js        data model, column mapping, conversation index
 
 js/daten/messengers.js  messenger detection, brand colours, logos
+js/daten/emoji.js       reactions given as short names („:+1:", „(like)") shown as emoji
+js/daten/emoji-namen.js table of emoji short names (generated from gemoji)
 js/daten/media.js       media library: read folders, match paths, deliver files
 js/daten/archive.js     ZIP reader for Office files (docx, xlsx, pptx, odt …)
 js/daten/whatsapp.js    WhatsApp text exports: detect formats, read messages
 js/daten/aleapp.js      ALEAPP reports: recognise tables and combine them per app
 js/daten/aleapp-whatsapp.js  WhatsApp from ALEAPP: names, LID chats, receipts, calls
-js/daten/aleapp-apps.js      Signal, Telegram, Threema, SMS, Google Messages and others
+js/daten/aleapp-apps.js      Signal, Telegram, Threema, SMS, Google Messages, phone and others
+js/daten/ileapp.js      iLEAPP reports: SMS/iMessage, WhatsApp, Threema, Signal, Telegram, calls
+js/daten/geraete-db.js  SQL exports with raw column names from device databases
 js/daten/documents.js   documents: preview, text extraction, background run
 js/daten/translate.js   translation: browser API, language detection, queue, storage
 js/daten/transcribe.js  voice messages: prepare audio, choose method, store
@@ -480,6 +627,8 @@ js/bedienung/fortschritt.js      progress bar and loading bars
 js/bedienung/hilfe.js            help dialog for the CSV format
 js/bedienung/import.js           import of CSV, WhatsApp export and ALEAPP report, drag & drop, export, demo data
 js/bedienung/whatsapp-import.js  ask for chat name and date format, read WhatsApp ZIPs
+js/bedienung/spaltenzuordnung.js dialog „Spalten zuordnen" (map columns) for unknown CSVs
+js/bedienung/pdf-bericht.js      chat as a PDF report (print dialog)
 js/bedienung/medienordner.js     connect, remember and disconnect the media folder
 js/bedienung/uebersetzen.js      translation controls (🌐)
 js/bedienung/sprachnachrichten.js transcription controls (🎤)
@@ -496,6 +645,7 @@ serve.py                 web server for macOS/Linux with the required MIME types
 ChatVisualizer starten.cmd   start file for Windows
 start.ps1                local web server, Windows built-in tools only
 start.sh                 the same for macOS/Linux
+werkzeuge/erzeuge-emoji-namen.py  generates js/daten/emoji-namen.js
 ```
 
 In the browser console, `window.ChatVisualizer` provides `state`, `importFiles(files)`,
@@ -525,4 +675,5 @@ Bundled third-party components keep their own licenses:
 | `vendor/pdfjs/` – PDF.js (Mozilla) | Apache-2.0; fonts and WASM decoders with their own license files in the same folder |
 | `vendor/transformers/` – Transformers.js (Hugging Face) with ONNX Runtime Web (Microsoft) | Apache-2.0 and MIT |
 | Speech recognition model in `modelle/` (downloaded on first start) | Apache-2.0, see `modelle/quellen.json` |
+| Emoji short names in `js/daten/emoji-namen.js` – from gemoji (GitHub) | MIT |
 | Sample media in `beispiel-daten/medien/` | see `beispiel-daten/QUELLEN.md` |

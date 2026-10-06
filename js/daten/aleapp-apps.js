@@ -53,8 +53,7 @@
           von_mir: aus === null ? '' : (aus ? '1' : '0'),
           zeitstempel: A.utc(A.erster(r['date sent'], r['date received']))
         };
-        let status = aus ? A.statusWort(r['status']) : '';
-        if (ja(r['remote deleted'])) status = 'gelöscht';
+        const status = aus ? A.statusWort(r['status']) : '';
         // Anhänge: aus der Anhangtabelle, sonst die Pfade in der Nachricht selbst
         const liste = (anhaenge.get(r['message id']) || []).map(a => ({
           pfad: A.medium(a['attachment']) || A.medium(a['stored file']),
@@ -71,7 +70,7 @@
           nachrichteninhalt: A.erster(r['message'], erster.beschriftung) + (ja(r['view once']) ? ' (einmal ansehen)' : ''),
           medienpfad: erster.pfad, nachricht_typ: erster.typ,
           antwort_auf_id: r['quoted message id'] && !ja(r['quoted original missing']) ? 'signal-' + r['quoted message id'] : '',
-          status
+          status, geloescht: ja(r['remote deleted']) ? '1' : ''
         }));
         liste.forEach((a, i) => zeilen.push(Object.assign({}, basis, {
           nachricht_id: id + '-anhang-' + (i + 2), nachrichteninhalt: a.beschriftung, medienpfad: a.pfad, nachricht_typ: a.typ
@@ -85,9 +84,8 @@
           nachricht_id: 'signal-anruf-' + r['call id'], unterhaltungs_id: (/^anrufe-/.test(chat) ? '' : 'Thread ') + chat, _chat: chat,
           absender_id: aus ? 'Ich' : A.erster(r['contact'], r['phone number']),
           von_mir: aus === null ? '' : (aus ? '1' : '0'), zeitstempel: A.utc(r['timestamp']),
-          nachrichteninhalt: (/video/i.test(r['call type'] || '') ? 'Videoanruf' : 'Sprachanruf') +
-            (r['outcome'] ? ' · ' + r['outcome'] : ''),
-          nachricht_typ: 'anruf'
+          nachrichteninhalt: '', nachricht_typ: 'anruf',
+          video: /video/i.test(r['call type'] || '') ? '1' : '', anruf_ergebnis: r['outcome'] || ''
         });
       }
       for (const z of zeilen) z.chatname = namen.name(z._chat, 'Signal-Chat ' + z._chat);
@@ -221,6 +219,46 @@
     }
   });
 
+  /* ---- Telefon: Anrufliste (calllog.db, ältere contacts2.db) -----------
+     Ein Chat je Nummer; „Type" enthält bei ALEAPP ein Symbol als HTML. */
+  A.quelle({
+    app: 'Telefon', messenger: 'Telefon',
+    tabellen: {
+      anrufe:     ['call date', 'partner', 'duration in secs'],
+      anrufeAlt:  ['from_id', 'to_id', 'start_date', 'call_type']
+    },
+    kombiniere(t) {
+      const zeilen = [];
+      for (const r of t.anrufe) {
+        const art = String(r['type'] || '').replace(/<[^>]*>/g, '').trim();
+        const aus = /^outgoing$/i.test(art);
+        const nummer = r['partner'] || '(unbekannte Nummer)';
+        zeilen.push({
+          unterhaltungs_id: nummer, chatname: nummer, absender_id: aus ? '' : nummer, von_mir: aus ? '1' : '0',
+          zeitstempel: A.utc(r['call date']), nachricht_typ: 'anruf',
+          nachrichteninhalt: String(r['transcription'] || '').trim(),   // Mailbox-Transkription
+          dauer: r['duration in secs'] || '', anruf_ergebnis: /^(incoming|outgoing)$/i.test(art) ? '' : art,
+          geloescht: r['deleted'] === '1' ? '1' : '', quelle: 'ALEAPP: Call logs (calllog.db)'
+        });
+      }
+      // Samsung/ältere Geräte: Dauer = Ende − Beginn
+      for (const r of t.anrufeAlt) {
+        const aus = /^outgoing$/i.test(String(r['direction'] || '').trim());
+        const nummer = r['number'] || '(unbekannte Nummer)';
+        const sek = (Date.parse(A.utc(r['end_date'])) - Date.parse(A.utc(r['start_date']))) / 1000;
+        const art = String(r['call_type'] || '').trim();
+        zeilen.push({
+          unterhaltungs_id: nummer, chatname: r['name'] || nummer, absender_id: aus ? '' : nummer,
+          absender_name: aus ? '' : (r['name'] || ''), von_mir: aus ? '1' : '0',
+          zeitstempel: A.utc(r['start_date']), nachricht_typ: 'anruf', nachrichteninhalt: '',
+          dauer: isFinite(sek) && sek >= 0 ? String(Math.round(sek)) : '',
+          anruf_ergebnis: /^(incoming|outgoing)$/i.test(art) ? '' : art, quelle: 'ALEAPP: Call Logs (contacts2.db)'
+        });
+      }
+      return zeilen;
+    }
+  });
+
   /* ---- Google Messages (App-Datenbank bugle_db) ----------------------
      Dieselben SMS/MMS stehen auch in mmssms.db. Liegen beide Tabellen vor,
      gleicht der Kern sie ab (doppeltMit): die Nachrichten aus SMS, die
@@ -291,7 +329,7 @@
       absender: r => r['sender name'], text: r => A.erster(r['message text'], r['message url']), id: r => r['message id'] },
     { app: 'Badoo', spalten: ['conversation with', 'sender id', 'recipient id'], zeit: 'timestamp',
       chat: r => [r['conversation with'], r['conversation with']], absender: r => r['sender id'], text: r => r['message'] },
-    { app: 'Zangi', spalten: ['from me', 'chat-id', 'message-id'], zeit: 'timestamp',
+    { app: 'Zangi', spalten: ['from me', 'chat-id', 'message-id', 'from id', 'to id'],   // ohne From/To ID: iLEAPP-Threema zeit: 'timestamp',
       aus: richtung('from me'), chat: r => [r['chat-id'], r['chat']], absender: r => r['sender name'],
       text: r => r['message'], medium: r => A.medium(r['attachment file']), id: r => r['message-id'] },
     { app: 'TextNow', spalten: ['send timestamp', 'from id', 'to id', 'thread id'], zeit: 'send timestamp',

@@ -48,6 +48,11 @@
     Render.renderDetails();
     Render.renderConvList();
 
+    // Tastatur (Bild↑/↓, Pfeile, Pos1/Ende) soll den Verlauf scrollen, nicht die Chatliste
+    if (!document.activeElement || !document.activeElement.matches('input, select, textarea')) {
+      $('#chatScroll').focus({ preventScroll: true });
+    }
+
     if (state.chatQuery && state.chatHits.length) {
       // kurz warten, bis der Verlauf im Layout steht
       setTimeout(() => Render.gotoMessage(state.chatHits[state.chatHitIndex].key), 60);
@@ -96,6 +101,22 @@
 
       const bild = e.target.closest('.media-img[data-media]');
       if (bild) { Lightbox.oeffnen(bild.dataset.key); return; }
+
+      // Datei aus dem Internet: einzeln oder dauerhaft freigeben
+      const laden = e.target.closest('[data-extern-laden]');
+      if (laden) {
+        const kachel = laden.closest('.media[data-media]');
+        Media.erlaubeExtern(kachel.dataset.media);
+        Medienansicht.freigeben([kachel]);
+        return;
+      }
+      if (e.target.closest('[data-extern-immer]')) {
+        Media.setzeExternImmer(true);
+        Medienansicht.freigeben(Helfer.$$('#chatMessages .media.extern-frage'));
+        Render.renderDetails();
+        Meldung.zeige('Externe Medien werden ab jetzt geladen. Abschalten im Hilfefenster (?).');
+        return;
+      }
 
       // Kachel ohne Vorschau: wenigstens den Pfad in die Zwischenablage legen
       const kachel = e.target.closest('.media-chip[data-media]');
@@ -251,6 +272,29 @@
       Store.settings.set('theme', neu);
     });
 
+    /* Zeiten in Ortszeit oder UTC: alles neu zeichnen, Leseposition halten */
+    const zoneKnopf = () => {
+      const utc = M.zeigeZone() === 'UTC';
+      const k = $('#zoneBtn');
+      k.textContent = utc ? 'UTC' : 'Ortszeit';
+      k.classList.toggle('utc', utc);
+      k.setAttribute('aria-pressed', String(utc));
+      k.title = 'Zeiten werden in ' + M.zonenName() + ' angezeigt – klicken zum Umschalten';
+    };
+    zoneKnopf();
+    $('#zoneBtn').addEventListener('click', () => {
+      M.setzeAnzeigeZone(M.zeigeZone() === 'UTC' ? '' : 'UTC');
+      zoneKnopf();
+      Render.renderConvList();
+      const conv = state.convByKey.get(state.activeConv);
+      if (conv) {
+        Render.renderChatHeader(conv);
+        Render.renderChat('keep');
+        Render.renderDetails();
+      }
+      Meldung.zeige('Zeiten jetzt in ' + Helfer.esc(M.zonenName()) + '.');
+    });
+
     /* Ein Klick neben ein offenes Einstellungs-Panel schließt es */
     document.addEventListener('click', e => {
       if ($('#trPanel').classList.contains('open') &&
@@ -262,6 +306,50 @@
         Sprachnachrichten.panelSchliessen();
       }
     });
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Breite der Seitenleiste
+   * ------------------------------------------------------------------ */
+
+  /* Ziehen am rechten Rand ändert --seite am #app; die Breite wird gemerkt.
+     Doppelklick gibt die Standardbreite aus dem Stylesheet zurück. */
+  function verdrahteSeitenbreite() {
+    const app = $('#app'), griff = $('#seitenGriff');
+    const MIN = 240;
+    const max = () => Math.max(MIN, Math.min(720, Math.round(window.innerWidth * 0.55)));
+    const setze = px => app.style.setProperty('--seite', Math.max(MIN, Math.min(max(), Math.round(px))) + 'px');
+
+    const gemerkt = Store.settings.get('seitenBreite', 0);
+    if (gemerkt) setze(gemerkt);
+
+    griff.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      griff.setPointerCapture(e.pointerId);
+      app.classList.add('ziehen');
+      const links = $('.sidebar').getBoundingClientRect().left;
+      const bewegen = ev => setze(ev.clientX - links);
+      const ende = () => {
+        app.classList.remove('ziehen');
+        griff.removeEventListener('pointermove', bewegen);
+        Store.settings.set('seitenBreite', parseInt(app.style.getPropertyValue('--seite'), 10) || 0);
+      };
+      griff.addEventListener('pointermove', bewegen);
+      griff.addEventListener('pointerup', ende, { once: true });
+      griff.addEventListener('pointercancel', ende, { once: true });
+    });
+
+    griff.addEventListener('dblclick', () => {
+      app.style.removeProperty('--seite');
+      Store.settings.set('seitenBreite', 0);
+    });
+
+    // Wird das Fenster schmaler, darf die Leiste den Chat nicht verdrängen
+    window.addEventListener('resize', Helfer.debounce(() => {
+      const w = parseInt(app.style.getPropertyValue('--seite'), 10);
+      if (w) setze(w);
+    }, 150));
   }
 
   /* ------------------------------------------------------------------ *
@@ -299,13 +387,16 @@
 
     /* Jedes Modul hängt seine eigenen Zuhörer ein */
     Hilfe.verdrahten();
+    Spaltenzuordnung.verdrahten();
     Import.verdrahten();
+    PdfBericht.verdrahten();
     Medienordner.verdrahten();
     Uebersetzen.verdrahten();
     Sprachnachrichten.verdrahten();
     Lightbox.verdrahten();
     Fortschritt.verdrahten();
     verdrahteSeitenleiste();
+    verdrahteSeitenbreite();
     verdrahteKopfzeile();
     verdrahteVerlauf();
     verdrahteTastatur();

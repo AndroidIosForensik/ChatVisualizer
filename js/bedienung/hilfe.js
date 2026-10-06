@@ -19,7 +19,11 @@
     ''
   ].join('\n');
 
-  function oeffnen() { $('#helpDialog').classList.add('show'); }
+  function oeffnen() {
+    // Rücknahme der Freigabe „Externe Medien immer laden" nur zeigen, wenn sie gilt
+    $('#externAus').hidden = Store.settings.get('externeMedien', false) !== true;
+    $('#helpDialog').classList.add('show');
+  }
   function schliessen() { $('#helpDialog').classList.remove('show'); }
   function istOffen() { return $('#helpDialog').classList.contains('show'); }
 
@@ -35,6 +39,13 @@
     // Klick auf den Hintergrund oder auf ein [data-help-close] schließt sie
     $('#helpDialog').addEventListener('click', e => {
       if (e.target.id === 'helpDialog' || e.target.closest('[data-help-close]')) schliessen();
+    });
+
+    $('#externAus').addEventListener('click', () => {
+      Media.setzeExternImmer(false);
+      $('#externAus').hidden = true;
+      Render.renderChat('keep');
+      Meldung.zeige('Externe Medien werden nicht mehr automatisch geladen.', 'ok');
     });
 
     $('#helpTemplate').addEventListener('click', () => {

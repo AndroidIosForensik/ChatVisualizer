@@ -15,10 +15,13 @@
   /* Nur die reinen Datenfelder speichern (keine Laufzeit-Verweise) */
   const FIELDS = ['key', 'id', 'messenger', 'conv', 'convKey', 'ts', 'tsRaw',
                   'sender', 'text', 'type', 'media', 'replyTo', 'reactionTo', 'status', 'sourceOrder', 'convName', 'fromMe'];
+  /* Nur gespeichert, wenn gesetzt – die meisten Nachrichten haben sie nicht */
+  const OPTIONAL = ['senderName', 'deleted', 'tz', 'source', 'duration', 'video', 'callResult'];
 
   function plain(m) {
     const o = {};
     for (const f of FIELDS) o[f] = m[f];
+    for (const f of OPTIONAL) if (m[f] !== undefined) o[f] = m[f];
     return o;
   }
 

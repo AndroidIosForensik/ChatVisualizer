@@ -30,6 +30,7 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .chat-tools { display: flex; align-items: center; gap: 4px; flex: none; }
+.zone-hinweis { color: var(--accent); font-weight: 600; }
 
 /* Hauptknopf legt los, das kleine ▾ daneben öffnet die Einstellungen */
 .split-btn { display: inline-flex; align-items: center; }
@@ -98,7 +99,7 @@
 .job-bar.done .job-line i { background: var(--ok); }
 .job-bar.done .job-title { color: var(--ok); }
 
-.chat-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 14px 0 22px; }
+.chat-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 14px 0 22px; outline: none; }
 .chat-messages { max-width: 880px; margin: 0 auto; padding: 0 18px; }
 
 .load-more {
@@ -157,6 +158,29 @@
 .text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .text.big-emoji { font-size: 34px; line-height: 1.25; }
 .text.deleted { font-style: italic; opacity: .65; }
+
+/* Anrufe */
+.call { display: flex; align-items: center; gap: 10px; min-width: 190px; padding: 3px 2px 2px 0; }
+.call-icon {
+  flex: none; width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 16px;
+  background: rgba(70, 192, 122, .18);
+}
+.call.verpasst .call-icon { background: rgba(226, 88, 93, .18); }
+.call-body { display: flex; flex-direction: column; line-height: 1.35; }
+.call-dir { font-size: 11.5px; opacity: .75; font-weight: 500; }
+.call-info { font-size: 12px; opacity: .8; }
+.call.verpasst .call-info { color: var(--danger); opacity: 1; }
+.msg.out .call.verpasst .call-info { color: #ffb4b6; }
+[data-theme="light"] .msg.out .call.verpasst .call-info { color: var(--danger); }
+.call + .text { margin-top: 4px; }
+.deleted-tag {
+  display: inline-block; margin-bottom: 3px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .3px;
+  color: var(--danger); opacity: .9;
+}
+.msg.out .deleted-tag { color: #ffb4b6; }
+[data-theme="light"] .msg.out .deleted-tag { color: var(--danger); }
 .msg.out .text a { color: #cfe2ff; }
 
 .bubble-meta {
@@ -263,6 +287,17 @@
 .media-chip.unresolved { opacity: .82; }
 .media-chip.unresolved { flex-wrap: wrap; }
 .media-error { flex-basis: 100%; font-size: 12px; color: var(--text-2); }
+
+/* Dateien aus dem Internet: Freigabe und Link unter dem eingebetteten Bild */
+.media-chip.extern-frage { cursor: default; flex-wrap: wrap; }
+.extern-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.extern-knoepfe .btn { padding: 4px 10px; font-size: 12px; border-radius: 8px; }
+.extern-link {
+  display: block; margin-top: 4px; font-size: 11.5px;
+  overflow-wrap: anywhere; opacity: .85;
+}
+.msg.out .extern-link { color: #cfe2ff; }
+[data-theme="light"] .msg.out .extern-link { color: var(--accent); }
 .mf-body { min-width: 0; display: flex; flex-direction: column; }
 .mf-name { font-weight: 600; word-break: break-all; }
 .mf-path { font-size: 11px; opacity: .6; word-break: break-all; }

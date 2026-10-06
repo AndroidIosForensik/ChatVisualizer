@@ -63,6 +63,35 @@
       (url ? ' <a href="' + esc(url) + '" download="' + esc(Helfer.dateiname(pfad)) + '">Datei speichern</a>' : '') + '</span>';
   }
 
+  /**
+   * Kachel für eine Datei aus dem Internet, die noch nicht geladen werden darf:
+   * nennt den Server und bietet „Laden" bzw. „immer laden" an (bedienung, app.js).
+   */
+  function externFrage(el, pfad) {
+    let host = '';
+    try { host = new URL(pfad).host; } catch (e) { /* bleibt leer */ }
+    el.className = 'media media-chip extern-frage';
+    el.innerHTML = kachelInhalt(el.dataset.kind, esc(Helfer.dateiname(pfad.replace(/[?#].*$/, ''))), esc(pfad), null) +
+      '<span class="media-error">Datei im Internet' + (host ? ' (' + esc(host) + ')' : '') +
+      '. Beim Laden sieht dieser Server die IP-Adresse dieses Rechners.' +
+      '<span class="extern-knoepfe"><button class="btn" data-extern-laden>Laden</button>' +
+      '<button class="btn ghost" data-extern-immer>Externe Medien immer laden</button></span></span>';
+    // bleibt als „belebt" markiert, sonst zeichnete jedes Scrollen die Kachel neu;
+    // nach der Freigabe belebt freigeben() sie erneut
+  }
+
+  /** Nach einer Freigabe: Kachel(n) erneut beleben. */
+  function freigeben(kacheln) {
+    for (const k of kacheln) { delete k.dataset.hydrated; belebe(k); }
+  }
+
+  /** Link unter einem eingebetteten Internet-Bild – außer er steht schon im Text. */
+  function linkDarunter(el, url) {
+    const m = state.byKey.get(el.dataset.key);
+    if (m && m.text && m.text.indexOf(url) !== -1) return '';
+    return '<a class="extern-link" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(url) + '</a>';
+  }
+
   /** Gemeinsame Darstellung in Chat, Galerie und Großansicht. */
   function visualHTML(art, pfad, url, name) {
     const video = art === 'video' || (art === 'animation' && Media.kindOf('', pfad) === 'video');
@@ -179,21 +208,30 @@
     const art = el.dataset.kind;
     const name = esc(Helfer.dateiname(pfad));
 
-    if (art === 'pdf' && window.Documents) { await belebePdf(el, pfad); return; }
-    if (art === 'doc' && window.Documents) { await belebeDok(el, pfad); return; }
+    // Dokumente im Internet werden nicht gelesen, nur verlinkt
+    const extern = Media.istExtern(pfad);
+    if (!extern && art === 'pdf' && window.Documents) { await belebePdf(el, pfad); return; }
+    if (!extern && art === 'doc' && window.Documents) { await belebeDok(el, pfad); return; }
+    const sichtbar = art === 'bild' || art === 'animation' || art === 'video' || art === 'audio';
+
+    // Bilder/Videos/Töne aus dem Internet erst nach Freigabe laden
+    if (extern && sichtbar && !Media.externErlaubt(pfad)) { externFrage(el, pfad); return; }
 
     // Erst im verbundenen Medienordner suchen, sonst den Pfad direkt versuchen
     const ausOrdner = !!Media.lookup(pfad);
-    const url = await Media.getDisplayURL(pfad);
+    const url = extern && !sichtbar ? pfad : await Media.getDisplayURL(pfad);
     if (!el.isConnected) return;
     if (!url) { zurueckZurKachel(el); return; }
 
     const sicher = esc(url);
     if (art === 'bild' || art === 'animation' || art === 'video') {
-      el.className = 'media ' + (art === 'video' ? 'media-video' : 'media-img');
+      el.className = 'media ' + (art === 'video' ? 'media-video' : 'media-img') + (extern ? ' extern' : '');
       el.innerHTML = visualHTML(art, pfad, url, Helfer.dateiname(pfad)) +
-        (art === 'video' ? '<span class="mf-name small">' + name + '</span>' : '');
-      el.firstElementChild.addEventListener('error', () => zurueckZurKachel(el, url, 'Der Browser konnte diese Datei nicht anzeigen.'));
+        (art === 'video' && !extern ? '<span class="mf-name small">' + name + '</span>' : '') +
+        (extern ? linkDarunter(el, url) : '');
+      el.firstElementChild.addEventListener('error', () => extern
+        ? zurueckZurKachel(el, null, 'Konnte nicht aus dem Internet geladen werden (Link ungültig, gelöscht oder offline).')
+        : zurueckZurKachel(el, url, 'Der Browser konnte diese Datei nicht anzeigen.'));
       startAnimation(el);
     } else if (art === 'audio') {
       el.className = 'media media-audio';
@@ -284,7 +322,7 @@
     TYP_SYMBOL: TYP_SYMBOL, ART_SYMBOL: ART_SYMBOL,
     artVon: artVon, medienHTML: medienHTML, direkteURL: direkteURL,
     belebe: belebe, belebeAlle: belebeAlle, belebeVorschauen: belebeVorschauen,
-    belebePdf: belebePdf, belebeDok: belebeDok,
+    belebePdf: belebePdf, belebeDok: belebeDok, freigeben: freigeben,
     visualHTML: visualHTML, startAnimation: startAnimation
   };
 })(window);

@@ -62,7 +62,8 @@ demselben Muster ein.
 | Dokumente | PDFs zeigen eine Seitenvorschau, Word/Excel/Text eine Leseprobe, ein Klick öffnet den Inhalt. Alle Dokumente werden im Hintergrund gelesen und sind damit durchsuchbar |
 | Sprachnachrichten | **🎤** in der Chat-Kopfzeile transkribiert alle Sprachnachrichten des Chats, 🎤 an der Sprechblase nur diese eine |
 | Übersetzen | **🌐** in der Chat-Kopfzeile übersetzt den ganzen Chat, 🌐 an der Sprechblase nur diese eine. Das Original bleibt darunter sichtbar |
-| Einstellungen dazu | das **▾** neben 🎤 bzw. 🌐: Zielsprache, Verfahren, Modell, Transkripte löschen |
+| Einstellungen dazu | das **▾** neben 🎤 bzw. 🌐: Ausgangs- und Zielsprache, Verfahren, Modell, Transkripte löschen |
+| Ortszeit / UTC | Schalter **Ortszeit** in der Seitenleiste: zeigt alle Zeiten in UTC an (Sprechblasen, Tagestrenner, Chatliste, Details, Textexport). Der Tooltip der Uhrzeit nennt jeweils auch die andere Sicht. Die Wahl wird gemerkt |
 | Fortschritt | Während eines Durchlaufs zeigt ein Balken über dem Chat den Stand an, etwa „Übersetzt… 12 / 14". Er bleibt auch bei geschlossenem Panel sichtbar und lässt sich dort abbrechen |
 | Suchen (alle Chats) | Feld oben links, `Strg+K`. Zeigt die Trefferzahl je Chat, ein Klick springt zum Treffer |
 | Suchen (im Chat) | Lupe in der Chat-Kopfzeile, `Strg+F`, mit `Enter` und `Umschalt+Enter` durch die Treffer |
@@ -70,7 +71,7 @@ demselben Muster ein.
 | Sortieren | Auswahlfeld über der Chatliste: neueste, älteste, meiste Nachrichten, Name |
 | Eigene Seite festlegen | **Ich:** in der Chat-Kopfzeile. Diese Person erscheint rechts in Blau |
 | Details und Statistik | ⓘ rechts oben: Teilnehmer, Zeitraum, Nachrichtentypen, Medien |
-| Exportieren | ⤓ in der Chat-Kopfzeile für den Chat als Text, ⤓ in der Seitenleiste für alles als JSON |
+| Exportieren | ⤓ in der Chat-Kopfzeile für den Chat als **PDF-Bericht** (siehe unten), ⤓ in der Seitenleiste für alles als JSON |
 | Hell und Dunkel | ◐ in der Seitenleiste |
 | Alles löschen | 🗑 in der Seitenleiste |
 
@@ -80,13 +81,16 @@ Nachricht zu erscheinen.
 
 ## Unterstützte Quellen
 
-Drei Wege führen in den ChatVisualizer, alle ohne Rückfragen nach Spalten:
+Diese Wege führen in den ChatVisualizer; nur bei unbekannten Spalten fragt der Import einmal nach:
 
 | Quelle | Was man hineinzieht | Was passiert |
 | --- | --- | --- |
 | **ALEAPP-Bericht** | den ganzen Berichtsordner (`ALEAPP_Reports_…` bzw. `ALEAPP_Output_…`) oder die TSV-Dateien aus `_TSV Exports` | Die Tabellen einer App werden erkannt und **zusammengeführt**: Namen, Anhänge, Anrufe, Systemereignisse, Lesebestätigungen, Reaktionen. Alle anderen Tabellen des Berichts (Browser, WLAN, Konten …) werden still übergangen. |
 | **WhatsApp-Textexport** | TXT, ZIP mit Medien oder den entpackten Ordner (Android und iPhone) | siehe [WhatsApp-Textexporte mit Medien](#whatsapp-textexporte-mit-medien) |
-| **Eigene CSV/TSV** | CSV- oder TSV-Dateien, z. B. aus SQL-Abfragen auf App-Datenbanken | siehe [CSV-Format](#csv-format) |
+| **iLEAPP-Bericht** | Berichtsordner oder TSV-Dateien aus `_TSV Exports` | siehe [iLEAPP-Berichte](#ileapp-berichte) |
+| **SQL-Export aus Geräte-Datenbanken** | CSV mit den rohen Spaltennamen (`ZWAMESSAGE`, `message`, `sms.db` …) | siehe [SQL-Exporte aus Geräte-Datenbanken](#sql-exporte-aus-geräte-datenbanken) |
+| **Eigene CSV/TSV** | CSV- oder TSV-Dateien im eigenen Spaltenformat | siehe [CSV-Format](#csv-format) |
+| **Andere CSV** | beliebige Spalten | Dialog **Spalten zuordnen**, siehe [Andere Formate](#andere-formate-spalten-zuordnen) |
 
 ### Chat-Apps aus ALEAPP-Berichten
 
@@ -104,6 +108,7 @@ aber ohne echtes Gerät.
 | **Google Messages** | GoogleMessages – mit SMS/MMS abgeglichen, siehe unten | echter Bericht |
 | **Telegram** | Messages, Chats | erkannt¹ |
 | **Threema** | Messages, Contacts | erkannt¹ |
+| **Telefon** | Call logs (calllog.db), Call Logs (contacts2.db) – ein Chat je Rufnummer: eingehend, ausgehend, verpasst, abgelehnt, Mailbox | ALEAPP-Spalten |
 | Facebook Messenger | Chats (msys_database), Chats (threads_db2) | ALEAPP-Spalten |
 | Instagram | Direct Messages | ALEAPP-Spalten |
 | Snapchat | Messages (arroyo.db), Messages | ALEAPP-Spalten |
@@ -125,15 +130,16 @@ dort nicht. Der ChatVisualizer meldet dann „keine Nachrichten enthalten“.
   Lesebestätigung nennt aber Zeitpunkt und Text ihrer Nachricht – darüber ist bekannt, welcher
   Chat hinter der Kennung steckt. So landen Systemereignisse und Reaktionen im richtigen Chat.
 - **Häkchen:** Eigene Nachrichten mit gelesener Lesebestätigung zeigen ✓✓ blau, sonst ✓✓.
-- **Anrufe:** Ein Anruf aus der Anrufliste, der auch im Chatverlauf steht, bekommt dort Art und
-  Dauer („Sprachanruf · 2:13 min“) und taucht nicht doppelt auf.
+- **Anrufe:** Anrufe erscheinen als Anrufkarte im Chat. Ein Anruf aus der Anrufliste, der auch im
+  Chatverlauf steht, bekommt dort Dauer und Videokennung und taucht nicht doppelt auf.
 - **Anhänge:** Bevorzugt wird die Kopie im Berichtsordner (`media/…`), sonst der Pfad auf dem
   Gerät. Wird der ganze Berichtsordner hineingezogen, sind die Bilder und Videos sofort da.
 - **Google Messages und SMS:** Beide Datenbanken enthalten dieselben Nachrichten. Liegen beide
   vor, bleibt jede Nachricht einmal: der Zustellstatus aus SMS, die Kontaktnamen aus Google
   Messages; was nur in Google Messages steht (RCS), kommt in denselben Chat.
 - **Nichts fällt still weg:** Nachrichten ohne Text und Datei erscheinen als Hinweis
-  („Systemmeldung“, „Anruf“, „WhatsApp-Nachrichtentyp 7 (ohne Inhalt)“).
+  („Systemmeldung“, „WhatsApp-Nachrichtentyp 7 (ohne Inhalt)“), Anrufe als Anrufkarte und
+  gelöschte Nachrichten mit Vermerk.
 - **Zeiten:** ALEAPP schreibt UTC, auch ohne Zonenangabe; sie werden als UTC gelesen und in
   Ortszeit angezeigt.
 - **Mehrfachimport:** Derselbe Bericht zweimal ergibt keine Doppelten.
@@ -152,6 +158,12 @@ zusammengeführt wurden.
 - Ältere ALEAPP-Fassungen ohne `jid_map`-Auflösung lassen Einzelchats mit `…@lid`-Kennung
   ganz aus dem Bericht „WhatsApp - One To One Messages“ fallen. Dann helfen nur die
   SQL-Abfragen auf die Datenbank selbst.
+- Einzelchats ohne JID im Bericht hält der Partnername zusammen, Gruppen der Gruppenname: zwei
+  Kontakte oder Gruppen mit gleichem Namen fallen zusammen.
+- Den Ausgang eines WhatsApp-Anrufs (verpasst, abgelehnt) liefert ALEAPP nicht; ein Anruf ohne
+  Dauer erscheint als „keine Verbindung“.
+- Ein WhatsApp-Textexport (TXT/ZIP) desselben Chats wird nicht mit den ALEAPP-Daten
+  zusammengelegt, sondern steht als eigener Chat daneben.
 - Reaktionen gibt es nur für WhatsApp; Bearbeitungen werden mit „(bearbeitet)“ markiert.
 
 ## WhatsApp-Textexporte mit Medien
@@ -196,6 +208,74 @@ vorher entpacken und als Ordner verbinden; einzelne ZIP-Anhänge dürfen höchst
 
 Ein kleines Beispiel liegt in `tests/fixtures/WhatsApp Chat mit Importtest.txt`.
 Die dort genannten Anhänge liegen in `beispiel-daten/medien/`.
+
+## iLEAPP-Berichte
+
+Genauso wie bei ALEAPP: TSV-Dateien aus `_TSV Exports` einzeln importieren oder den
+Berichtsordner ablegen. Zeiten gelten als UTC.
+
+| Bericht | Messenger | Hinweis |
+| --- | --- | --- |
+| `SMS & iMessage` (sms.db) | iMessage, SMS, RCS | Apple legt je Dienst einen eigenen Chat an, das bleibt so; Lesestatus und ROWID als Quelle |
+| `WhatsApp - Messages` (ChatStorage.sqlite) | WhatsApp | auch ältere iLEAPP-Versionen ohne Richtungsspalte („Local User“); in Gruppen nennt der Bericht nur die Gruppe, nicht das Mitglied |
+| `Threema - Chats` | Threema | Abstimmungen erscheinen als Umfrage |
+| `Signal - Messages` | Signal | „Remotely Deleted“ wird als gelöscht markiert |
+| `Telegram Messages` | Telegram | Aktionen ohne Text erscheinen als Systemnachricht |
+| `WhatsApp - Call History` | WhatsApp | Anrufe im selben Chat wie die Nachrichten (gleiche JID), mit verpasst/abgelehnt und Video |
+| `Call History` | Telefon, FaceTime, WhatsApp | iPhone-Anrufliste; nicht angenommene eingehende Anrufe gelten als verpasst |
+
+## SQL-Exporte aus Geräte-Datenbanken
+
+Wer die Datenbanken selbst abfragt (DB Browser for SQLite, `sqlite3 -csv` …) und das
+Ergebnis als CSV speichert, muss nichts umbenennen. Erkannt werden die rohen Spaltennamen
+dieser Tabellen:
+
+| Datenbank | Tabelle | erkannt an |
+| --- | --- | --- |
+| WhatsApp iPhone `ChatStorage.sqlite` | `ZWAMESSAGE` | `ZMESSAGEDATE`, `ZISFROMME` |
+| WhatsApp Android `msgstore.db` | `message` | `chat_row_id`, `from_me` |
+| WhatsApp Android `msgstore.db` (alt) | `messages` | `key_remote_jid`, `key_from_me` |
+| iPhone `sms.db` | `message` | `guid`, `is_from_me`, `date` |
+| Android `mmssms.db` | `sms` | `thread_id`, `address`, `body`, `type` |
+| Android `calllog.db` | `calls` | `number`, `date`, `duration`, `type` |
+| WhatsApp Android `msgstore.db` | `call_log` | `call_id`, `video_call`, `duration`, `from_me` |
+| iPhone `CallHistory.storedata` | `ZCALLRECORD` | `ZADDRESS`, `ZORIGINATED`, `ZDATE`, `ZDURATION` |
+| WhatsApp iPhone `CallHistory.sqlite` | `ZWACDCALLEVENT` | `ZOUTCOME`, `ZDURATION`, `ZDATE` |
+
+Damit WhatsApp-Anrufe aus SQL-Exporten im Chat der Nachrichten landen, braucht es in
+beiden Abfragen dieselbe Chat-Kennung. Beim iPhone ist das `ZCONTACTJID` bzw.
+`ZJIDSTRING`/`ZGROUPJIDSTRING`, bei Android `jid.raw_string` als Spalte `chat_jid`. Sonst
+stehen sie unter ihrer Zeilennummer (`jid_row_id …`) daneben. Bei `ZWACDCALLEVENT`
+ergibt sich die Richtung nur mit `ZINCOMING` aus `ZWAAGGREGATECALLEVENT`, ohne sie gilt
+ein Anruf als eingehend.
+
+Spalten aus einem JOIN werden mitgenommen, wenn sie in der Abfrage stehen, zum Beispiel
+`ZPARTNERNAME`, `ZCONTACTJID`, `ZMEMBERJID` und `ZMEDIALOCALPATH` bei iPhone-WhatsApp,
+`chat_jid`, `sender_jid` und `file_path` bei Android-WhatsApp oder `chat_identifier`,
+`display_name` und `filename` bei `sms.db`. Ohne sie bleiben die Zeilennummern der
+Datenbank als Chat-Kennung stehen (`ZCHATSESSION 3`, `chat_row_id 2`). Die Chats werden
+trotzdem richtig getrennt, nur ohne Namen. `NULL` gilt als leer. Jede Nachricht trägt ihre
+Herkunft (Datenbank, Tabelle, Zeile) im Tooltip der Uhrzeit.
+
+Zeiten bleiben dabei Zahlen, eine Umrechnung in SQL ist nicht nötig: Apple-Sekunden,
+Apple-Nanosekunden (`sms.db` ab iOS 11) und Unix-Millisekunden erkennt der Import an der
+Stellenzahl.
+
+## Andere Formate: Spalten zuordnen
+
+Hat eine CSV Spalten, die ChatVisualizer nicht kennt, erscheint beim Import der Dialog
+**Spalten zuordnen**. Die erkannten Spalten sind dort vorausgewählt, daneben stehen
+Beispielwerte. Außerdem lassen sich einstellen:
+
+- die Zeitzone für Zeiten ohne Zonenangabe (Ortszeit, UTC, Europe/Berlin oder eine
+  beliebige Zone),
+- ein fester Chatname für Dateien ohne Chatspalte, etwa den SQL-Export eines einzelnen
+  Chats,
+- der Messenger, falls keine Spalte ihn nennt.
+
+Eine **Zeitprobe** zeigt die erste Zeit als Ortszeit und als UTC, bevor importiert wird.
+Die Antwort gilt für alle Dateien mit denselben Spalten. Vergessen lässt sie sich im
+Hilfefenster (**?**).
 
 ## CSV-Format
 
@@ -247,6 +327,38 @@ Nachrichten werden über `messenger + nachricht_id` eindeutig gehalten, ohne ID-
 Chat, Zeitpunkt, Absender und Inhalt. Dieselbe Datei zweimal zu importieren erzeugt deshalb
 keine Duplikate, sondern aktualisiert die vorhandenen Nachrichten.
 
+## Chat als PDF-Bericht
+
+⤓ in der Chat-Kopfzeile öffnet den Dialog **Chat als PDF ausgeben**. Dort lassen sich
+einstellen:
+
+- der Zeitraum (von/bis, in der gerade angezeigten Zeitzone),
+- ein Aktenzeichen oder Vermerk,
+- ob Bilder eingebettet werden,
+- ob Übersetzungen, Transkripte und technische Angaben je Nachricht (ID, Rohwert der
+  Zeit, Quelle) mit hinein sollen,
+- bei aktiver Chatsuche: nur die Treffer.
+
+**PDF erstellen** öffnet den Druckdialog des Browsers, dort **„Als PDF speichern“** wählen.
+Der vorgeschlagene Dateiname ist „Chat <Titel> <Datum>“.
+
+Der Bericht besteht aus einem Deckblatt und dem Verlauf:
+
+- **Deckblatt:** Messenger, Chat-Kennung, Teilnehmer mit Name und Kennung, Zeitraum,
+  Anzahl, Zeitzone, Filter, Quellen, Erstellzeit und eine SHA-256-Prüfsumme über die
+  enthaltenen Nachrichten. Dieselben Daten ergeben dieselbe Prüfsumme.
+- **Verlauf:** Sprechblasen wie im Programm, mit Datum und Uhrzeit auf die Sekunde.
+- **Kopf- und Fußzeile:** Chatname, Vermerk und „Seite X von Y“.
+
+Übersetzungen und Transkripte stehen immer nach dem Originaltext und sind als maschinell
+gekennzeichnet. Gelöschte Nachrichten tragen einen Vermerk. Bilder werden verkleinert
+eingebettet (höchstens 500 je Bericht), andere Anhänge erscheinen mit Dateiname und Pfad.
+
+Warum über den Druckdialog? Ein eigener PDF-Erzeuger müsste Schriften für Kyrillisch,
+Arabisch, Chinesisch und Emoji mitbringen. So nimmt der Browser die Schriften des
+Systems, und nichts verlässt den Rechner. Im Druckdialog die „Kopf- und Fußzeilen“ des
+Browsers ausschalten, sie überlagern sonst die eigenen.
+
 ## Übersetzung
 
 Fremdsprachige Nachrichten lassen sich ins Deutsche oder eine andere Sprache übersetzen.
@@ -258,7 +370,15 @@ Bedient wird das über **🌐** in der Chat-Kopfzeile. Ein Klick übersetzt den 
 bereits Übersetztes wird übersprungen.
 
 - Der Fortschritt steht über dem Chat und lässt sich dort abbrechen.
-- Das **▾** daneben öffnet die Einstellungen: Zielsprache, Löschen.
+- Das **▾** daneben öffnet die Einstellungen: **Von** (Ausgangssprache, je Chat) und
+  **Nach** (Zielsprache, für alle Chats), dazwischen ⇄ zum Tauschen, außerdem Löschen.
+- Ausgangssprache „Automatisch erkennen“ ist der Normalfall. Wird sie für einen Chat fest
+  gewählt, gilt jede Nachricht dieses Chats als in dieser Sprache geschrieben. Ausnahme:
+  Ist „schon in der Zielsprache überspringen“ an, bleiben etwa die eigenen deutschen
+  Antworten unübersetzt. Das hilft bei kurzen Nachrichten und bei Sprachen, die die
+  Erkennung verwechselt (Russisch/Ukrainisch, Serbisch/Kroatisch …). Die feste Wahl gilt
+  auch für die Transkription der Sprachnachrichten im selben Chat. Beim Wechsel werden
+  Übersetzungen verworfen, die aus einer anderen Ausgangssprache entstanden sind.
 - Einzelne Nachricht: 🌐 erscheint beim Überfahren einer Sprechblase, ↩ nimmt die
   Übersetzung zurück.
 - Übersetzungen werden gespeichert, stehen nach einem Neustart sofort bereit und werden
@@ -279,7 +399,11 @@ das Panel das. Alle Aufrufe laufen in ein Zeitlimit, damit die Oberfläche nicht
 Zum Übersetzen wird nichts installiert und nichts mitgeliefert, das erledigt der Browser.
 Das Modell im Ordner `modelle/` ist nur für die Spracherkennung zuständig.
 
-Weitere Schalter im Panel: Zielsprache, „Nachrichten in der Zielsprache überspringen" und
+Muss der Browser ein Sprachpaket erst laden, verlangt Chrome dafür einen frischen Klick.
+Deshalb wird das Paket gleich beim Klick auf 🌐 angefordert, noch vor der Spracherkennung.
+Schlägt es trotzdem fehl, sagt die Meldung, dass ein weiterer Klick nötig ist.
+
+Weitere Schalter im Panel: „Nachrichten, die schon in der Zielsprache sind, überspringen“ und
 das Löschen aller Übersetzungen des Chats. Reine Emoji- und Link-Nachrichten werden nicht
 übersetzt.
 
@@ -368,6 +492,27 @@ Kann der Browser einen vorhandenen Anhang nicht darstellen oder seinen Codec nic
 abspielen, erscheint eine Meldung mit einem Link zum Speichern der Originaldatei.
 Die lokalen Windows- und Python-Server unterstützen Teilabrufe zum Laden und Spulen.
 Nach einer Aktualisierung der Startskripte den Server neu starten.
+
+### Medien aus dem Internet (GIF-Links)
+
+Steht im Medienpfad ein `http(s)`-Link, etwa bei GIFs von Klipy, Tenor oder Giphy,
+bettet der Chat Bild, GIF, Video oder Ton direkt ein und zeigt den Link darunter. Steht
+der Link schon im Nachrichtentext, erscheint er nicht doppelt. Ein Link darf `?Parameter`
+haben, die Dateiart ergibt sich trotzdem aus der Endung.
+
+Geladen wird erst nach einer **Freigabe per Klick**, denn der fremde Server sieht dabei die
+IP-Adresse des Auswerterechners. Bei einer Ermittlung kann das auffallen. Die Kachel
+bietet dazu zwei Knöpfe:
+
+- **Laden** gibt nur diese Datei frei.
+- **Externe Medien immer laden** gibt alle frei. Zurücknehmen lässt sich das im
+  Hilfefenster (**?**).
+
+Liegt dieselbe Datei im verbundenen Medienordner, wird die lokale Kopie gezeigt, ganz
+ohne Netz.
+
+Im PDF-Bericht werden freigegebene Internet-Bilder mit eingebettet, der vollständige
+Link steht darunter.
 
 ### Dokumente: Vorschau und Suche
 
@@ -460,12 +605,16 @@ js/kern/store.js        IndexedDB (ein Eintrag je Unterhaltung) und Einstellunge
 js/kern/model.js        Datenmodell, Spaltenzuordnung, Index der Unterhaltungen
 
 js/daten/messengers.js  Messenger-Erkennung, Markenfarben, Logos
+js/daten/emoji.js       Reaktionen mit Kurznamen („:+1:“, „(like)“) als Emoji
+js/daten/emoji-namen.js Tabelle der Emoji-Kurznamen (aus gemoji, erzeugt)
 js/daten/media.js       Medienbibliothek: Ordner einlesen, Pfade zuordnen, Dateien liefern
 js/daten/archive.js     ZIP-Leser für Office-Dateien (docx, xlsx, pptx, odt …)
 js/daten/whatsapp.js    WhatsApp-Textexporte: Formate erkennen, Nachrichten lesen
 js/daten/aleapp.js      ALEAPP-Berichte: Tabellen erkennen und je App zusammenführen
 js/daten/aleapp-whatsapp.js  WhatsApp aus ALEAPP: Namen, LID-Chats, Bestätigungen, Anrufe
-js/daten/aleapp-apps.js      Signal, Telegram, Threema, SMS, Google Messages und weitere
+js/daten/aleapp-apps.js      Signal, Telegram, Threema, SMS, Google Messages, Telefon und weitere
+js/daten/ileapp.js      iLEAPP-Berichte: SMS/iMessage, WhatsApp, Threema, Signal, Telegram, Anrufe
+js/daten/geraete-db.js  SQL-Exporte mit rohen Spaltennamen aus Geräte-Datenbanken
 js/daten/documents.js   Dokumente: Vorschau, Textauszug, Hintergrundlauf
 js/daten/translate.js   Übersetzung: Browser-API, Spracherkennung, Warteschlange, Speicher
 js/daten/transcribe.js  Sprachnachrichten: Audio aufbereiten, Verfahren wählen, speichern
@@ -484,6 +633,8 @@ js/bedienung/fortschritt.js      Fortschrittsleiste und Ladebalken
 js/bedienung/hilfe.js            Erklärfenster zum CSV-Format
 js/bedienung/import.js           Import von CSV, WhatsApp-Export und ALEAPP-Bericht, Ablegen per Maus, Export, Demodaten
 js/bedienung/whatsapp-import.js  Chatname und Datumsformat abfragen, WhatsApp-ZIPs lesen
+js/bedienung/spaltenzuordnung.js Dialog „Spalten zuordnen“ für fremde CSVs
+js/bedienung/pdf-bericht.js      Chat als PDF-Bericht (Druckdialog)
 js/bedienung/medienordner.js     Medienordner verbinden, merken, trennen
 js/bedienung/uebersetzen.js      Bedienung der Übersetzung (🌐)
 js/bedienung/sprachnachrichten.js Bedienung der Transkription (🎤)
@@ -500,6 +651,7 @@ serve.py                 Webserver für macOS/Linux mit den nötigen MIME-Typen
 ChatVisualizer starten.cmd   Startdatei für Windows
 start.ps1                lokaler Webserver, nur Windows-Bordmittel
 start.sh                 dasselbe für macOS/Linux
+werkzeuge/erzeuge-emoji-namen.py  erzeugt js/daten/emoji-namen.js
 ```
 
 In der Konsole steht `window.ChatVisualizer` mit `state`, `importFiles(files)`,
@@ -529,4 +681,5 @@ Mitgelieferte Fremdbestandteile behalten ihre eigenen Lizenzen:
 | `vendor/pdfjs/` – PDF.js (Mozilla) | Apache-2.0; Schriften und WASM-Decoder mit eigenen Lizenzdateien im selben Ordner |
 | `vendor/transformers/` – Transformers.js (Hugging Face) mit ONNX Runtime Web (Microsoft) | Apache-2.0 bzw. MIT |
 | Spracherkennungsmodell in `modelle/` (wird beim ersten Start geladen) | Apache-2.0, siehe `modelle/quellen.json` |
+| Emoji-Kurznamen in `js/daten/emoji-namen.js` – aus gemoji (GitHub) | MIT |
 | Beispielmedien in `beispiel-daten/medien/` | siehe `beispiel-daten/QUELLEN.md` |

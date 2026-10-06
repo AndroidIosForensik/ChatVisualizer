@@ -40,7 +40,7 @@
     const t = typ(art);
     if (text || medium) return { text, typ: t };
     if (t === 'system') return { text: 'Systemmeldung', typ: 'system' };
-    if (art === '90') return { text: 'Anruf', typ: 'anruf' };         // Anruf im Chatverlauf
+    if (art === '90') return { text: '', typ: 'anruf' };              // Anruf im Chatverlauf
     if (/^\d+$/.test(art)) return { text: 'WhatsApp-Nachrichtentyp ' + art + ' (ohne Inhalt)', typ: 'system' };
     return { text: '', typ: t };
   }
@@ -87,15 +87,6 @@
       default: return 'Systemereignis (WhatsApp-Code ' + (isNaN(code) ? '?' : code) + ')' +
         (text ? ': ' + text : '') + (wer.length ? ' – betrifft: ' + liste(wer) : '');
     }
-  }
-
-  /* „00:02:13" → „2:13 min"; 0 Sekunden heißt meist: nicht angenommen */
-  function dauer(wert) {
-    const m = String(wert || '').match(/^(\d+):(\d{2}):(\d{2})$/);
-    if (!m) return String(wert || '');
-    const sek = +m[1] * 3600 + +m[2] * 60 + +m[3];
-    if (!sek) return 'nicht angenommen';
-    return +m[1] ? m[1] + ':' + m[2] + ':' + m[3] + ' h' : (+m[2]) + ':' + m[3] + ' min';
   }
 
   A.quelle({
@@ -150,7 +141,7 @@
         if (!aus && r['sending party jid']) jidZuChat.set(r['sending party jid'], chat);
         const medium = A.medium(r['media']) || r['local path to media'] || '';
         neu(chat, Object.assign({ ts: A.utc(r['message timestamp']), aus, quelle: 'nachricht',
-          absender: aus ? 'Ich' : nameFuer(partner), medium }, inhalt(r, medium)));
+          tabelle: 'WhatsApp - One To One Messages', absender: aus ? 'Ich' : nameFuer(partner), medium }, inhalt(r, medium)));
       }
       for (const r of t.gruppe) {
         const gruppe = r['conversation name'];
@@ -161,6 +152,7 @@
         const aus = A.ausgehend(r['message direction']) === true || r['sending party'] === 'Self';
         const medium = A.medium(r['media']) || r['local path to media'] || '';
         neu(chat, Object.assign({ ts: A.utc(r['message timestamp']), aus, quelle: 'nachricht',
+          tabelle: 'WhatsApp - Group Messages',
           absender: aus ? 'Ich' : nameFuer(A.erster(partei, r['sending party jid'])), medium }, inhalt(r, medium)));
       }
       // Altes Schema (Tabelle „messages"): „Message ID" ist dort die Chat-JID
@@ -171,7 +163,7 @@
         namen.merke(chat, nameFuer(jid));
         jidZuChat.set(jid, chat);
         const aus = A.ausgehend(r['direction']) === true;
-        neu(chat, { ts: A.utc(r['message timestamp']), aus, quelle: 'nachricht',
+        neu(chat, { ts: A.utc(r['message timestamp']), aus, quelle: 'nachricht', tabelle: 'WhatsApp - Messages',
           absender: aus ? 'Ich' : nameFuer(gruppe ? r['group sender'] : jid),
           text: r['message'] || '', medium: A.medium(r['attachment']) });
       }
@@ -223,22 +215,22 @@
       for (const r of t.system) {
         const chat = chatOderNeu(r['chat jid'], r['chat name']);
         if (!chat) continue;
-        neu(chat, { ts: A.utc(r['event timestamp']), aus: null, quelle: 'system', absender: 'system',
-          text: systemText(r, nameFuer), typ: 'system' });
+        neu(chat, { ts: A.utc(r['event timestamp']), aus: null, quelle: 'system', tabelle: 'WhatsApp - System Events',
+          absender: 'system', text: systemText(r, nameFuer), typ: 'system' });
       }
 
       for (const r of t.anrufe) {
         const aus = A.ausgehend(r['call direction']) === true;
-        const art = /video/i.test(r['call type'] || '') ? 'Videoanruf' : 'Sprachanruf';
-        const d = dauer(r['call duration']);
+        const video = /video/i.test(r['call type'] || '') ? '1' : '';
+        const d = r['call duration'] || '';
         // Steht der Anruf schon im Chatverlauf, bekommt er dort Art und Dauer –
         // so landet er auch ohne Gesprächspartner im richtigen Chat.
         const beginn = Model.parseTimestamp(A.utc(r['call start timestamp']));
         const imVerlauf = nachrichten.find(m => m.typ === 'anruf' && m.quelle === 'nachricht' && !m.anrufInfo &&
           Math.abs(Model.parseTimestamp(m.ts) - beginn) <= 60000);
         if (imVerlauf) {
-          imVerlauf.text = art + (d ? ' · ' + d : '');
-          imVerlauf.anrufInfo = true;
+          Object.assign(imVerlauf, { dauer: d, video, anrufInfo: true,
+            tabelle: imVerlauf.tabelle + ' + WhatsApp - Call Logs' });
           continue;
         }
         const jid = r['caller jid'];
@@ -249,9 +241,9 @@
           (caller && nachrichten.some(m => m.chat === '1:' + caller) ? '1:' + caller : null);
         if (!chat && (jid || r['group name'] || caller)) chat = chatOderNeu(jid, r['group name'] || caller);
         if (!chat) { chat = 'anrufe'; namen.merke(chat, 'Anrufe ohne Gesprächspartner'); }
-        neu(chat, { ts: A.utc(r['call start timestamp']), aus, quelle: 'anruf',
-          absender: aus ? 'Ich' : nameFuer(A.erster(jid, caller)) || namen.name(chat),
-          text: art + (d ? ' · ' + d : ''), typ: 'anruf' });
+        neu(chat, { ts: A.utc(r['call start timestamp']), aus, quelle: 'anruf', tabelle: 'WhatsApp - Call Logs',
+          absender: aus ? 'Ich' : (caller && !A.istKennung(caller) ? caller : nameFuer(A.erster(jid, caller))) || namen.name(chat),
+          text: '', typ: 'anruf', dauer: d, video });
       }
 
       for (const r of t.reaktionen) {
@@ -268,8 +260,9 @@
         const zielChat = ziel ? ziel.chat : chat;
         if (!zielChat) continue;
         const absender = aus ? 'Ich' : (nameFuer(A.erster(r['sender wa name'], r['sender jid'])) || namen.name(zielChat));
-        if (ziel) neu(zielChat, { ts, aus, quelle: 'reaktion', absender, text: r['reaction'], typ: 'reaktion', reaktionAuf: ziel });
-        else neu(zielChat, { ts, aus, quelle: 'reaktion', absender,
+        if (ziel) neu(zielChat, { ts, aus, quelle: 'reaktion', tabelle: 'WhatsApp - Message Reactions', absender,
+          text: r['reaction'], typ: 'reaktion', reaktionAuf: ziel });
+        else neu(zielChat, { ts, aus, quelle: 'reaktion', tabelle: 'WhatsApp - Message Reactions', absender,
           text: r['reaction'] + ' zu „' + (r['reacted-to message'] || '…').slice(0, 80) + '“' });
       }
 
@@ -284,9 +277,9 @@
         if (!chat) continue;
         const ts = A.utc(r['message timestamp']);
         const m = (nachZeit.get(ts) || []).find(x => x.chat === chat);
-        if (m) { m.status = 'gelöscht'; continue; }
+        if (m) { m.geloescht = true; continue; }
         const aus = A.ausgehend(r['direction']) === true;
-        neu(chat, { ts, aus, quelle: 'widerrufen', status: 'gelöscht', text: 'Diese Nachricht wurde gelöscht',
+        neu(chat, { ts, aus, quelle: 'widerrufen', tabelle: 'WhatsApp - Revoked Messages', geloescht: true, text: '',
           absender: aus ? 'Ich' : nameFuer(A.erster(r['sender wa name'], r['sender jid'])) });
       }
 
@@ -301,7 +294,7 @@
         const chat = chatOderNeu(r['chat jid'], r['chat name']);
         if (!chat) continue;
         const aus = A.ausgehend(r['direction']) === true;
-        neu(chat, { ts: A.utc(r['poll timestamp']), aus, quelle: 'umfrage', typ: 'umfrage',
+        neu(chat, { ts: A.utc(r['poll timestamp']), aus, quelle: 'umfrage', tabelle: 'WhatsApp - Polls', typ: 'umfrage',
           text: (r['question'] || 'Umfrage') + optionen.map(o => '\n• ' + o).join(''),
           absender: aus ? 'Ich' : nameFuer(A.erster(r['sender wa name'], r['sender jid'])) || namen.name(chat) });
       }
@@ -333,7 +326,11 @@
           nachricht_typ: m.typ,
           medienpfad: m.medium,
           reaktion_auf_id: m.reaktionAuf ? m.reaktionAuf.id : '',
-          status
+          status,
+          geloescht: m.geloescht ? '1' : '',
+          dauer: m.dauer || '',
+          video: m.video || '',
+          quelle: m.tabelle ? 'ALEAPP: ' + m.tabelle : ''
         };
       });
     }

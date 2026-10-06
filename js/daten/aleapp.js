@@ -13,8 +13,9 @@
   'use strict';
 
   /* Zielspalten, die jede Quelle liefert (siehe README, Abschnitt „CSV format“ bzw. „CSV-Format“) */
-  const SPALTEN = ['nachricht_id', 'unterhaltungs_id', 'chatname', 'absender_id', 'von_mir', 'zeitstempel',
-    'nachrichteninhalt', 'nachricht_typ', 'medienpfad', 'antwort_auf_id', 'reaktion_auf_id', 'status', 'messenger'];
+  const SPALTEN = ['nachricht_id', 'unterhaltungs_id', 'chatname', 'absender_id', 'absender_name', 'von_mir',
+    'zeitstempel', 'nachrichteninhalt', 'nachricht_typ', 'medienpfad', 'antwort_auf_id', 'reaktion_auf_id', 'status',
+    'geloescht', 'dauer', 'video', 'anruf_ergebnis', 'quelle', 'messenger'];
 
   const QUELLEN = [];
 
@@ -59,6 +60,8 @@
         const voll = {};
         for (const s of SPALTEN) voll[s] = z[s] === undefined || z[s] === null ? '' : String(z[s]);
         if (!voll.messenger) voll.messenger = q.messenger || q.app;
+        // Herkunft für den Tooltip der Uhrzeit: die Tabelle, sonst die App
+        if (!voll.quelle) voll.quelle = 'ALEAPP: ' + (eigene.length === 1 ? eigene[0].name.replace(/\.tsv$/i, '') : q.app);
         return voll;
       });
       ergebnis.push({ app: q.app, header: SPALTEN.slice(), data: zeilen, doppeltMit: q.doppeltMit,

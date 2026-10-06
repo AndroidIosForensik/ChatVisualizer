@@ -17,16 +17,49 @@
   /* ---- Panel ---------------------------------------------------------- */
 
   /** Panel mit dem aktuellen Stand füllen (Sprachen, Verfügbarkeit, offene Zahl). */
+  /** Sprachen alphabetisch nach deutschem Namen */
+  function sprachOptionen() {
+    return Object.keys(Translate.LANGS)
+      .sort((a, b) => Translate.LANGS[a].localeCompare(Translate.LANGS[b], 'de'))
+      .map(k => '<option value="' + esc(k) + '">' + esc(Translate.LANGS[k]) + '</option>').join('');
+  }
+
+  /** Erklärung unter der Sprachwahl: was mit „Von" gerade gemeint ist. */
+  function sprachHinweis(conv) {
+    const e = Translate.settings;
+    const fest = conv ? Translate.sourceFor(conv.key) : '';
+    const hinweis = $('#trSourceHint');
+    hinweis.classList.remove('warn');
+    if (fest && fest === e.target) {
+      hinweis.classList.add('warn');
+      hinweis.textContent = 'Ausgangs- und Zielsprache sind gleich – hier gibt es nichts zu übersetzen.';
+    } else if (fest) {
+      hinweis.textContent = 'Alle Nachrichten gelten als ' + Translate.sprachName(fest) +
+        (e.skipTarget ? ', außer solche, die schon auf ' + Translate.sprachName(e.target) + ' sind.' : '.');
+    } else {
+      const erkannt = conv && Translate.erkannteSprache(conv.key);
+      hinweis.textContent = 'Die Sprache wird je Nachricht erkannt' +
+        (erkannt ? ' – dieser Chat ist überwiegend ' + Translate.sprachName(erkannt) + '.' : '.') +
+        ' Bei kurzen Nachrichten oder falscher Erkennung die Sprache fest wählen.';
+    }
+  }
+
   function fuellePanel() {
     const e = Translate.settings;
+    const conv = state.convByKey.get(state.activeConv);
 
     const ziel = $('#trTarget');
-    if (!ziel.options.length) {
-      ziel.innerHTML = Object.keys(Translate.LANGS)
-        .map(k => '<option value="' + k + '">' + esc(Translate.LANGS[k]) + '</option>').join('');
-    }
+    if (!ziel.options.length) ziel.innerHTML = sprachOptionen();
     ziel.value = e.target;
+
+    const quelle = $('#trSource');
+    if (!quelle.options.length) quelle.innerHTML = '<option value="">Automatisch erkennen</option>' + sprachOptionen();
+    quelle.value = conv ? Translate.sourceFor(conv.key) : '';
+    quelle.disabled = !conv || Translate.job.active;
+    ziel.disabled = Translate.job.active;
+    $('#trSwap').disabled = !quelle.value || Translate.job.active;
     $('#trSkipTarget').checked = e.skipTarget;
+    sprachHinweis(conv);
 
     /* Ampel: wird geprüft / einsatzbereit / nicht verfügbar */
     const st = Translate.status;
@@ -35,7 +68,6 @@
     else if (st.ok) info.innerHTML = '<span class="dot ok"></span>' + esc(st.detail);
     else info.innerHTML = '<span class="dot bad"></span>' + esc(st.detail || 'noch nicht geprüft');
 
-    const conv = state.convByKey.get(state.activeConv);
     const offen = conv ? Translate.pendingMessages(conv).length : 0;
     const knopf = $('#trRun');
     knopf.textContent = Translate.job.active
@@ -50,8 +82,38 @@
     $('#trPanelBtn').classList.add('active');
     Translate.status.checking = true;      // sofort „wird geprüft…" zeigen
     fuellePanel();
-    await Translate.check(true);
+    await Translate.check(true, Translate.sourceFor(state.activeConv));
     fuellePanel();
+  }
+
+  /**
+   * Nach einem Wechsel der Ausgangssprache: Übersetzungen dieses Chats, die
+   * aus einer anderen Sprache entstanden sind, verwerfen – sonst stünde neben
+   * der neuen Wahl noch das alte Ergebnis. Übersprungene Nachrichten in der
+   * Zielsprache bleiben stehen.
+   */
+  async function veralteteVerwerfen(conv) {
+    const fest = Translate.sourceFor(conv.key);
+    if (!fest) return 0;
+    const ziel = Translate.settings.target;
+    const weg = conv.messages.filter(m => {
+      const tr = Translate.get(m.key);
+      return tr && tr.s !== fest && !(tr.b === 'skip' && tr.s === ziel);
+    }).map(m => m.key);
+    if (weg.length) await Translate.clearFor(weg);
+    return weg.length;
+  }
+
+  /** Sprachwahl übernehmen: prüfen, Ansicht auffrischen, Panel neu füllen. */
+  async function spracheGeaendert(conv) {
+    const verworfen = conv ? await veralteteVerwerfen(conv) : 0;
+    Translate.status.ok = false;            // Verfügbarkeit gilt je Sprachpaar
+    Render.renderChat('keep');
+    await panelOeffnen();
+    if (verworfen) {
+      Meldung.zeige(verworfen + ' Übersetzungen aus einer anderen Ausgangssprache verworfen – ' +
+        '„Diesen Chat übersetzen" erstellt sie neu.', 'warn');
+    }
   }
 
   function panelSchliessen() {
@@ -77,6 +139,7 @@
   async function laufeChat() {
     const conv = state.convByKey.get(state.activeConv);
     if (!conv) return;
+    Translate.vorbereiten(conv);           // noch im Klick: Sprachpaket anfordern
     fuellePanel();
 
     const abbruch = () => Translate.cancel();
@@ -110,6 +173,7 @@
     const conv = state.convByKey.get(state.activeConv);
     const m = conv && conv.messages.find(x => x.key === key);
     if (!m) return;
+    Translate.vorbereiten(conv);           // noch im Klick: Sprachpaket anfordern
 
     const knopf = $('#chatMessages .msg[data-key="' + Helfer.cssAttr(key) + '"] [data-tr-msg]');
     if (knopf) { knopf.classList.add('busy'); knopf.textContent = '…'; }
@@ -144,6 +208,7 @@
       return;
     }
 
+    Translate.vorbereiten(conv);           // noch im Klick: Sprachpaket anfordern
     panelSchliessen();
     Sprachnachrichten.panelSchliessen();
     Fortschritt.zeige({
@@ -172,13 +237,28 @@
     $('#trTarget').addEventListener('change', e => {
       Translate.settings.target = e.target.value;
       Translate.saveSettings();
-      Translate.status.ok = false;            // Verfügbarkeit gilt je Sprachpaar
-      Render.renderChat('keep');
-      panelOeffnen();
+      spracheGeaendert(state.convByKey.get(state.activeConv));
+    });
+    $('#trSource').addEventListener('change', e => {
+      const conv = state.convByKey.get(state.activeConv);
+      if (!conv) return;
+      Translate.setSource(conv.key, e.target.value);
+      spracheGeaendert(conv);
+    });
+    // Tauschen: aus „Russisch → Deutsch" wird „Deutsch → Russisch"
+    $('#trSwap').addEventListener('click', () => {
+      const conv = state.convByKey.get(state.activeConv);
+      const fest = conv && Translate.sourceFor(conv.key);
+      if (!fest) return;
+      Translate.setSource(conv.key, Translate.settings.target);
+      Translate.settings.target = fest;
+      Translate.saveSettings();
+      spracheGeaendert(conv);
     });
     $('#trSkipTarget').addEventListener('change', e => {
       Translate.settings.skipTarget = e.target.checked;
       Translate.saveSettings();
+      sprachHinweis(state.convByKey.get(state.activeConv));
     });
 
     $('#trClearConv').addEventListener('click', async () => {
