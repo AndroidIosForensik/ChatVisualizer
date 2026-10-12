@@ -12,7 +12,9 @@ eigenen Rechner, es wird nichts hochgeladen.
 
 Herunterladen: auf der [Release-Seite](https://github.com/AndroidIosForensik/ChatVisualizer/releases/latest)
 unter *Assets* `ChatVisualizer-<Version>.zip` laden und entpacken. Die ZIP enthält den fertigen
-Ordner; Git wird nicht gebraucht.
+Ordner; Git wird nicht gebraucht. Für Rechner ohne Internet gibt es
+`ChatVisualizer-<Version>-offline-mit-Modell.zip` (ca. 170 MB), darin ist das Spracherkennungsmodell
+schon enthalten.
 
 Windows: Doppelklick auf `ChatVisualizer starten.cmd`. Der Browser öffnet sich von
 selbst, das Fenster daneben ist der lokale Server; zum Beenden schließen. Installiert

@@ -14,7 +14,9 @@ below as they appear in the program, with an English explanation.
 
 Download: on the [Releases page](https://github.com/AndroidIosForensik/ChatVisualizer/releases/latest)
 grab `ChatVisualizer-<version>.zip` under *Assets* and unpack it. The ZIP contains the ready-to-run
-folder; Git is not needed.
+folder; Git is not needed. For computers without internet there is
+`ChatVisualizer-<version>-offline-mit-Modell.zip` (about 170 MB), which already contains the speech
+recognition model.
 
 Windows: double-click `ChatVisualizer starten.cmd`. The browser opens by itself; the
 window next to it is the local server – close it to stop. Nothing needs to be installed,
