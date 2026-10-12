@@ -10,6 +10,10 @@ eigenen Rechner, es wird nichts hochgeladen.
 
 ## Starten
 
+Herunterladen: auf der [Release-Seite](https://github.com/AndroidIosForensik/ChatVisualizer/releases/latest)
+unter *Assets* `ChatVisualizer-<Version>.zip` laden und entpacken. Die ZIP enthält den fertigen
+Ordner; Git wird nicht gebraucht.
+
 Windows: Doppelklick auf `ChatVisualizer starten.cmd`. Der Browser öffnet sich von
 selbst, das Fenster daneben ist der lokale Server; zum Beenden schließen. Installiert
 werden muss nichts, es genügt PowerShell. Der Ordner funktioniert auch vom USB-Stick

@@ -12,6 +12,10 @@ below as they appear in the program, with an English explanation.
 
 ## Getting started
 
+Download: on the [Releases page](https://github.com/AndroidIosForensik/ChatVisualizer/releases/latest)
+grab `ChatVisualizer-<version>.zip` under *Assets* and unpack it. The ZIP contains the ready-to-run
+folder; Git is not needed.
+
 Windows: double-click `ChatVisualizer starten.cmd`. The browser opens by itself; the
 window next to it is the local server – close it to stop. Nothing needs to be installed,
 PowerShell is enough. The folder also works from a USB stick or a network drive.
