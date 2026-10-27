@@ -493,6 +493,13 @@ Unterhaltung abgeleitet, bevorzugt von derselben Person. In einem russischen Cha
 also russisch transkribiert, in einem englischen englisch. Im Panel lässt sich die
 Sprache auch fest vorgeben, falls die Automatik danebenliegt.
 
+Zur Auswahl stehen alle 99 Sprachen, die Whisper kennt. Oben stehen die, die in
+Ermittlungen häufig vorkommen (Russisch, Ukrainisch, Polnisch, Rumänisch, Bulgarisch,
+die Balkan- und baltischen Sprachen, Türkisch, Georgisch, Arabisch, Persisch, Paschtu,
+Urdu, Vietnamesisch, Chinesisch …). Wie gut das Ergebnis ist, hängt von der Sprache ab:
+am besten bei den großen europäischen und asiatischen Sprachen, spürbar schwächer bei
+Sprachen mit wenig Trainingsdaten. Kurdisch und Tigrinya kennt Whisper nicht.
+
 ### Tempo und Qualität
 
 Benutzt wird Whisper small (242 MB). Die Erkennung braucht ungefähr so lange wie die

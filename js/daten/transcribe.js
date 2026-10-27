@@ -12,6 +12,25 @@
     'Xenova/whisper-base': 'Whisper base – schneller, ungenauer'
   };
 
+  /* Sprachen, die Whisper kennt (lang_to_id in generation_config.json des Modells).
+     HAEUFIG steht im Auswahlfeld oben, der Rest darunter. */
+  const SPRACHEN = ('af am ar as az ba be bg bn bo br bs ca cs cy da de el en es et eu fa fi fo fr ' +
+    'gl gu haw ha he hi hr ht hu hy id is it ja jw ka kk km kn ko la lb ln lo lt lv mg mi mk ml mn ' +
+    'mr ms mt my ne nl nn no oc pa pl ps pt ro ru sa sd si sk sl sn so sq sr su sv sw ta te tg th tk ' +
+    'tl tr tt uk ur uz vi yi yo zh').split(' ');
+  const HAEUFIG = ['de', 'en', 'ru', 'uk', 'pl', 'ro', 'bg', 'lt', 'lv', 'cs', 'sk', 'hu',
+    'sq', 'sr', 'hr', 'bs', 'mk', 'tr', 'ka', 'hy', 'az', 'ar', 'fa', 'ps', 'ur', 'hi',
+    'vi', 'zh', 'th', 'so', 'am', 'it', 'fr', 'es', 'pt', 'nl'];
+  // Codes der Spracherkennung des Browsers, die Whisper anders schreibt
+  const ALIAS = { nb: 'no', iw: 'he', jv: 'jw', fil: 'tl' };
+
+  /** Sprachcode für Whisper oder '' (zh-Hant → zh, nb → no; Unbekanntes → ''). */
+  function whisperSprache(code) {
+    const c = String(code || '').split('-')[0].toLowerCase();
+    const w = ALIAS[c] || c;
+    return SPRACHEN.includes(w) ? w : '';
+  }
+
   /* Es wird nur angeboten, was auch im Ordner modelle/ liegt.
      modelle/verzeichnis.json sagt, was da ist – inklusive Gesamtgröße für die
      Fortschrittsanzeige; notfalls wird nachgesehen. */
@@ -67,8 +86,8 @@
      falls dort für den Chat eine Ausgangssprache fest gewählt ist, aus dieser. */
   async function guessLanguage(conv, m) {
     if (settings.language !== 'auto') return settings.language;
-    return (conv && Translate.sourceFor(conv.key).split('-')[0]) ||   // zh-Hant → zh
-      (await Translate.conversationLanguage(conv, m)) || Translate.settings.target;
+    return whisperSprache(conv && Translate.sourceFor(conv.key)) ||
+      whisperSprache(await Translate.conversationLanguage(conv, m)) || Translate.settings.target;
   }
 
   const PROMPT = 'Transkribiere diese Sprachnachricht wortgetreu. ' +
@@ -505,7 +524,8 @@
   function cancel() { job.cancel = true; }
 
   global.Transcribe = {
-    MODELLE: MODELLE, installedModels: installedModels, settings: settings, saveSettings: saveSettings,
+    MODELLE: MODELLE, SPRACHEN: SPRACHEN, HAEUFIG: HAEUFIG, whisperSprache: whisperSprache,
+    installedModels: installedModels, settings: settings, saveSettings: saveSettings,
     load: load, get: get, text: text, flush: flush, clearFor: clearFor, clearAll: clearAll,
     isVoice: isVoice, pendingMessages: pendingMessages, audioSource: audioSource,
     check: check, status: status, onDownloadProgress: onDownloadProgress, modelBytes: modelBytes,

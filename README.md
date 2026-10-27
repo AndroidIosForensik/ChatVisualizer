@@ -481,6 +481,13 @@ conversation, preferably from the same person. In a Russian chat transcription i
 Russian, in an English chat in English. The language can also be fixed in the panel in
 case the automatic choice is wrong.
 
+The panel offers all 99 languages Whisper knows. Those that come up often in
+investigations are listed first (Russian, Ukrainian, Polish, Romanian, Bulgarian, the
+Balkan and Baltic languages, Turkish, Georgian, Arabic, Persian, Pashto, Urdu,
+Vietnamese, Chinese …). How good the result is depends on the language: it is best for
+the big European and Asian languages and noticeably weaker for languages with little
+training data. Whisper does not know Kurdish or Tigrinya.
+
 ### Speed and quality
 
 Whisper small (242 MB) is used. Recognition takes about as long as the recording itself,

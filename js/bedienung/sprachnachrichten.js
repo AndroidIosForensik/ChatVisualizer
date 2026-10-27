@@ -19,6 +19,16 @@
 
   /* ---- Panel ---------------------------------------------------------- */
 
+  /* Namen, die nicht jeder Browser kennt */
+  const SELTENE = { ba: 'Baschkirisch', bo: 'Tibetisch', jw: 'Javanisch', haw: 'Hawaiisch' };
+
+  /** Deutsche Sprachnamen: eigene Tabellen, sonst der Browser, sonst der Code. */
+  function sprachNamen() {
+    let intl = null;
+    try { intl = new Intl.DisplayNames(['de'], { type: 'language' }); } catch (_) { /* alter Browser */ }
+    return k => Translate.LANGS[k] || SELTENE[k] || (intl && intl.of(k)) || k;
+  }
+
   /** Panel mit Verfahren, Modell, Sprache, Verfügbarkeit und offener Zahl füllen. */
   function fuellePanel() {
     const st = Transcribe.status;
@@ -35,9 +45,13 @@
 
     const sprachFeld = $('#scLanguage');
     if (!sprachFeld.options.length) {
+      const namen = sprachNamen();
+      const gruppe = (titel, codes) => '<optgroup label="' + titel + '">' + codes
+        .map(k => [k, namen(k)]).sort((a, b) => a[1].localeCompare(b[1], 'de'))
+        .map(([k, n]) => '<option value="' + k + '">' + esc(n) + '</option>').join('') + '</optgroup>';
       sprachFeld.innerHTML = '<option value="auto">Automatisch (aus dem Chat)</option>' +
-        ['de', 'en', 'ru', 'fr', 'es', 'it', 'tr', 'pl', 'uk', 'nl', 'pt', 'ar']
-          .map(k => '<option value="' + k + '">' + esc(Translate.LANGS[k] || k) + '</option>').join('');
+        gruppe('Häufig', Transcribe.HAEUFIG) +
+        gruppe('Weitere', Transcribe.SPRACHEN.filter(k => !Transcribe.HAEUFIG.includes(k)));
     }
     sprachFeld.value = e.language;
 

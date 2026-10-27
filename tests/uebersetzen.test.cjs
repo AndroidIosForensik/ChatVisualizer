@@ -164,3 +164,22 @@ test('Sprachpakete: abgelehntes Paar wird gemeldet, ohne Übersetzungs-API klare
   await assert.rejects(() => ctx.Translate.paketeLaden(['ru'], 'de', () => {}), /Chrome oder Edge/);
   assert.equal(await ctx.Translate.paketStand('ru', 'de'), 'fehlt');
 });
+
+test('Transkription: Whisper-Sprachen, Kurzformen und Sprache aus dem Chat', async () => {
+  const { ctx } = environment();
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../js/daten/transcribe.js'), 'utf8'), ctx);
+  const S = ctx.Transcribe;
+  assert.equal(S.SPRACHEN.length, 99);
+  for (const k of S.HAEUFIG) assert.ok(S.SPRACHEN.includes(k), k);
+  for (const k of ['ru', 'uk', 'vi', 'zh', 'fa', 'ps', 'sq', 'ro']) assert.ok(S.HAEUFIG.includes(k), k);
+  assert.equal(S.whisperSprache('zh-Hant'), 'zh');
+  assert.equal(S.whisperSprache('nb'), 'no');
+  assert.equal(S.whisperSprache('fil'), 'tl');
+  assert.equal(S.whisperSprache('ku'), '');                 // Kurdisch kennt Whisper nicht
+  // Fest gewählte Ausgangssprache des Chats wird übernommen
+  ctx.Translate.setSource('c', 'vi');
+  assert.equal(await S.guessLanguage({ key: 'c', messages: [] }, null), 'vi');
+  // Fest im Panel gewählt schlägt alles
+  S.settings.language = 'ps';
+  assert.equal(await S.guessLanguage({ key: 'c', messages: [] }, null), 'ps');
+});
