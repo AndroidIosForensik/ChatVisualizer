@@ -272,7 +272,28 @@ Write-Host "  Beenden: Strg+C oder dieses Fenster schliessen" -ForegroundColor D
 Write-Host ""
 
 if (-not $NoBrowser) {
-  try { Start-Process $url } catch { Write-Host "  Browser bitte manuell oeffnen: $url" -ForegroundColor Yellow }
+  # Zuerst Chrome, dann Edge: nur sie uebersetzen lokal (Translator-API). Sonst der Standardbrowser.
+  function Find-Browser($exe, $unterpfad) {
+    foreach ($wurzel in 'HKCU:', 'HKLM:') {
+      try {
+        $p = (Get-ItemProperty -Path "$wurzel\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$exe" -ErrorAction Stop).'(default)'
+        if ($p -and (Test-Path -LiteralPath $p.Trim('"'))) { return $p.Trim('"') }
+      } catch { }
+    }
+    foreach ($ordner in $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA) {
+      if ($ordner -and (Test-Path -LiteralPath (Join-Path $ordner $unterpfad))) { return (Join-Path $ordner $unterpfad) }
+    }
+    return $null
+  }
+  $browser = Find-Browser 'chrome.exe' 'Google\Chrome\Application\chrome.exe'
+  if (-not $browser) { $browser = Find-Browser 'msedge.exe' 'Microsoft\Edge\Application\msedge.exe' }
+  try {
+    if ($browser) { Start-Process -FilePath $browser -ArgumentList $url }
+    else {
+      Start-Process $url
+      Write-Host "  Chrome/Edge nicht gefunden - Standardbrowser geoeffnet. Zum Uebersetzen Chrome oder Edge nutzen." -ForegroundColor Yellow
+    }
+  } catch { Write-Host "  Browser bitte manuell oeffnen: $url" -ForegroundColor Yellow }
 }
 
 # --- Anfragen bedienen -------------------------------------------------------

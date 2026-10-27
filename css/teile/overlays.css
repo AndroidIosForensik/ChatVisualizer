@@ -68,7 +68,9 @@
   border-radius: 8px; background: var(--panel); color: var(--text); font: inherit;
 }
 .wa-import-hint { color: var(--text-3); font-size: 13px; line-height: 1.5; }
-.wa-import-dialog footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+/* Im HTML steht der Hauptknopf zuerst – dann löst Enter ihn aus und nicht „Abbrechen“.
+   row-reverse stellt ihn trotzdem rechts dar. */
+.wa-import-dialog footer { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: 10px; margin-top: 24px; }
 
 /* PDF-Dialog */
 .pdf-dialog { width: min(560px, calc(100vw - 32px)); }
@@ -120,3 +122,25 @@
 @media (max-width: 700px) {
   .map-optionen { grid-template-columns: 1fr; }
 }
+
+/* Sprachpakete */
+.paket-dialog { width: min(560px, calc(100vw - 32px)); }
+.paket-kopf { display: flex; justify-content: space-between; align-items: baseline; margin: 16px 0 6px; font-size: 13px; font-weight: 600; }
+.paket-kopf span:last-child { font-weight: 400; color: var(--text-3); }
+.paket-link { border: 0; background: none; color: var(--accent); padding: 0; font-size: 12.5px; cursor: pointer; }
+.paket-liste {
+  max-height: min(42vh, 380px); overflow: auto;
+  border: 1px solid var(--line); border-radius: 10px; padding: 4px 0;
+}
+.wa-import-dialog label.paket-zeile {
+  display: flex; align-items: center; gap: 10px; margin: 0; padding: 5px 12px;
+  font-weight: 500; font-size: 13.5px; cursor: pointer;
+}
+.paket-zeile:hover { background: var(--bg-3); }
+.paket-zeile input { width: auto; accent-color: var(--accent); }
+.paket-name { flex: 1; }
+.paket-stand { font-size: 12px; color: var(--text-3); }
+.paket-stand.ok { color: var(--ok); }
+.paket-stand.ok::before { content: "✓ "; }
+.paket-stand.laeuft { color: var(--warn); }
+.paket-stand.nein { color: var(--danger); opacity: .8; }

@@ -42,3 +42,8 @@ code {
   background: var(--bg-3); padding: 1px 5px; border-radius: 5px;
 }
 
+
+/* Stand der Sprachpakete (bedienung/sprachpakete.js) */
+.w-pakete { margin: 14px 0 0; font-size: 12.5px; color: var(--text-2); }
+.w-pakete:empty { display: none; }
+.w-pakete .w-format-link { margin: 0; font-size: 12.5px; }

@@ -918,3 +918,29 @@ test('ALEAPP: jede bekannte Tabelle wird eindeutig ihrer App zugeordnet und läs
   assert.equal(A.erkenne(['timestamp', 'from me', 'sender name', 'chat', 'message', 'attachment file', 'chat-id',
     'message-id', 'receiver', 'message type', 'latitude', 'longitude', 'accuracy']), null);
 });
+
+test('SQL-JOIN mit doppelten Spaltennamen: jede Nachricht bleibt erhalten, Chatname aus „name“', async () => {
+  const { ctx, dialoge } = environment();
+  ctx.Spaltenzuordnung.antwort = a => ({ map: a.map, zone: '', festerChat: '', messenger: '' });
+  // id/kontakt_id/name kommen mehrfach vor (nachrichten JOIN chats JOIN nutzer)
+  const csv = 'id;chat_id;kontakt_id;richtung;text;gesendet_am;gelesen;id;name;kontakt_id;erstellt_am;id;name;stadt\n' +
+    '1;1;2;1;Hallo Lina;2026-05-04 08:00;1;1;Lina;2;2026-05-04;2;Lina;Hamburg\n' +
+    '2;1;2;0;Danke!;2026-05-04 09:10;1;1;Lina;2;2026-05-04;2;Lina;Hamburg\n' +
+    '3;2;3;0;Frage von Mehmet;2026-05-05 12:00;1;2;Mehmet;3;2026-05-05;3;Mehmet;München\n';
+  await ctx.Import.importiereDateien([new File([csv], 'abfrage-ergebnis.csv')]);
+  assert.deepEqual(plain(dialoge[0].header.slice(7, 10)), ['id (2)', 'name', 'kontakt_id (2)']);
+  const { state } = ctx.Model;
+  assert.equal(state.messages.length, 3);                 // vorher: eine Nachricht je Partner
+  const lina = state.conversations.find(c => c.title === 'Lina');
+  assert.deepEqual(plain(lina.messages.map(m => [m.id, m.fromMe, m.status])), [['1', true, 'gelesen'], ['2', false, 'gelesen']]);
+  assert.equal(lina.messages[1].sender, 'Lina');
+  assert.equal(lina.messages[0].ts, new Date(2026, 4, 4, 8, 0).getTime());
+});
+
+test('Spalte mit doppelten IDs wird nicht als Schlüssel benutzt, Zeilen gehen nicht verloren', async () => {
+  const { ctx, messages } = environment();
+  const csv = 'chatname,nachricht_id,nachrichteninhalt\nA,7,eins\nA,7,zwei\nB,7,drei\n';
+  await ctx.Import.importiereDateien([new File([csv], 'ids.csv')]);
+  assert.equal(ctx.Model.state.messages.length, 3);
+  assert.match(messages.at(-1), /enthält doppelte Werte/);
+});

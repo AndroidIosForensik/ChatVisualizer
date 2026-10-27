@@ -116,6 +116,7 @@
 
         <label class="tr-check"><input type="checkbox" id="trSkipTarget"> Nachrichten, die schon in der Zielsprache sind, überspringen</label>
 
+        <button id="trPakete" class="btn ghost tr-clear">Sprachpakete vorab laden …</button>
         <button id="trClearConv" class="btn ghost tr-clear">Übersetzungen dieses Chats löschen</button>
         <p class="tr-note">Übersetzt wird mit der eingebauten Übersetzung von Chrome/Edge –
           on-device, kein Text verlässt den Rechner. Das Sprachpaket lädt der Browser beim
@@ -202,8 +203,34 @@
         Bilder, Videos und Sprachnachrichten werden dann direkt im Chat angezeigt und abgespielt.</p>
 
       <button class="w-format-link help-open">Welche Spalten braucht die CSV-Datei?</button>
+      <!-- Stand der Sprachpakete für die Übersetzung (bedienung/sprachpakete.js) -->
+      <p id="welcomePakete" class="w-pakete"></p>
     </div>
   </section>
+
+  <!-- ------------------------------------------------ Sprachpakete für die Übersetzung -->
+  <dialog id="paketDialog" class="wa-import-dialog paket-dialog" aria-labelledby="paketTitel">
+    <form method="dialog">
+      <h2 id="paketTitel">Sprachpakete für die Übersetzung</h2>
+      <p class="wa-import-hint">Chrome und Edge übersetzen auf diesem Rechner, ohne Text zu verschicken. Dafür
+        lädt der Browser je Sprache einmal ein Paket. Es bleibt im Browser gespeichert und steht beim nächsten
+        Start sofort bereit. Vorab geladen, klappt die Übersetzung später auch ohne Internet.</p>
+      <label for="paketZiel">Übersetzen nach</label>
+      <select id="paketZiel"></select>
+      <div class="paket-kopf">
+        <span>Ausgangssprachen</span>
+        <span><button type="button" class="paket-link" data-paket-haeufige>häufige wählen</button> ·
+          <button type="button" class="paket-link" data-paket-keine>keine</button></span>
+      </div>
+      <div id="paketListe" class="paket-liste"></div>
+      <p id="paketErkennung" class="wa-import-hint"></p>
+      <p id="paketHinweis" class="map-fehler" role="alert"></p>
+      <footer>
+        <button type="button" id="paketLaden" class="btn primary">Ausgewählte laden</button>
+        <button class="btn" value="close" formnovalidate>Schließen</button>
+      </footer>
+    </form>
+  </dialog>
 
   <dialog id="whatsappDialog" class="wa-import-dialog" aria-labelledby="waImportTitle">
     <form method="dialog">
@@ -219,8 +246,8 @@
       </select>
       <p id="waImportDate" class="wa-import-hint"></p>
       <footer>
-        <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
         <button class="btn primary" value="import">Importieren</button>
+        <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
       </footer>
     </form>
   </dialog>
@@ -264,8 +291,8 @@
       <label class="map-merken"><input id="mapMerken" type="checkbox" checked> Für Dateien mit denselben Spalten merken</label>
       <p id="mapFehler" class="map-fehler" role="alert"></p>
       <footer>
-        <button class="btn" value="cancel" formnovalidate>Überspringen</button>
         <button id="mapImport" class="btn primary" value="import">Importieren</button>
+        <button class="btn" value="cancel" formnovalidate>Überspringen</button>
       </footer>
     </form>
   </dialog>
@@ -296,8 +323,8 @@
       <p class="wa-import-hint">Im Druckdialog als Ziel <b>„Als PDF speichern“</b> wählen. Für saubere Seiten
         dort „Kopf- und Fußzeilen“ ausschalten und „Hintergrundgrafiken“ einschalten.</p>
       <footer>
-        <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
         <button id="pdfStart" class="btn primary" value="pdf">PDF erstellen</button>
+        <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
       </footer>
     </form>
   </dialog>
@@ -521,6 +548,7 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 <script src="js/bedienung/import.js"></script>
 <script src="js/bedienung/medienordner.js"></script>
 <script src="js/bedienung/uebersetzen.js"></script>
+<script src="js/bedienung/sprachpakete.js"></script>
 <script src="js/bedienung/sprachnachrichten.js"></script>
 <script src="js/bedienung/lightbox.js"></script>
 

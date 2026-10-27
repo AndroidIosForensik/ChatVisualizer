@@ -35,6 +35,9 @@ modelle/quellen.json  Bauplan: welche Modelldateien wohin gehören
 modelle/              Whisper-Modell, wird beim ersten Start geladen
 hole-modell.py        lädt fehlende Modelldateien nach (von start.sh aufgerufen)
 werkzeuge/            Hilfsskripte für Entwickler (z. B. Emoji-Tabelle neu erzeugen)
+werkzeuge/baue-exe.ps1      baut dist/ChatVisualizer.exe (csc.exe aus Windows, kein Download)
+werkzeuge/exe/ChatVisualizer.cs  die EXE: eingebettetes app.zip entpacken, Modell nachladen,
+                      HTTP-Server wie start.ps1 (Teilabrufe, MIME-Typen), Browser öffnen
 vendor/               PDF.js und transformers.js, unverändert übernommen
 ```
 
@@ -109,6 +112,7 @@ weder den Zustand noch stößt sie Läufe an.
 | `spaltenzuordnung.js` | `Spaltenzuordnung` | Dialog „Spalten zuordnen" für fremde CSVs mit Beispielwerten und Zeitprobe; merkt die Antwort je Spaltensatz |
 | `medienordner.js` | `Medienordner` | Ordner verbinden, merken, trennen |
 | `uebersetzen.js` | `Uebersetzen` | 🌐 Knopf, Panel, Chatlauf, Einzelnachricht |
+| `sprachpakete.js` | `Sprachpakete` | Sprachpakete der Browser-Übersetzung vorab laden (Startseite, 🌐-Panel); Stand je Sprache, Auswahl gemerkt |
 | `sprachnachrichten.js` | `Sprachnachrichten` | 🎤 Knopf, Panel, Chatlauf, Einzelnachricht |
 | `dokumente.js` | `Dokumentenlauf` | Anhänge im Hintergrund durchsuchbar machen |
 | `lightbox.js` | `Lightbox` | Großansicht für Bild, Video, PDF, Dokumenttext |

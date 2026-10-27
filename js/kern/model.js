@@ -241,7 +241,8 @@
   const FIELDS = {
     id:         ['nachricht_id', 'nachrichten_id', 'message_id', 'msg_id', 'message_guid', 'guid', 'key_id', 'zstanzaid', 'id', '_id', 'rowid', 'z_pk'],
     ts:         ['zeitstempel', 'timestamp', 'message_timestamp', 'message_timestamp_utc', 'timestamp_utc', 'datum_zeit',
-                 'datetime', 'date_time', 'message_date', 'zmessagedate', 'sent_timestamp'],
+                 'datetime', 'date_time', 'message_date', 'zmessagedate', 'sent_timestamp',
+                 'gesendet_am', 'gesendet', 'sent_at', 'send_time', 'created_at'],
     date:       ['datum', 'date'],
     time:       ['uhrzeit', 'zeit', 'time'],
     tz:         ['zeitzone', 'timezone', 'time_zone', 'tz', 'utc_offset'],
@@ -252,7 +253,8 @@
     conv:       ['unterhaltungs_id', 'unterhaltung_id', 'unterhaltung', 'conversation_id', 'chat_id', 'thread_id',
                  'chat_row_id', 'key_remote_jid', 'zchatsession', 'chat_identifier', 'chat'],
     convName:   ['chatname', 'chat_name', 'unterhaltungs_name', 'unterhaltung_name', 'gruppenname', 'conversation_name',
-                 'chat_title', 'zpartnername'],
+                 'chat_title', 'zpartnername',
+                 'name'],                     // zuletzt: in SQL-JOINs meist der Name des Chats bzw. Partners
     fromMe:     ['von_mir', 'from_me', 'is_from_me', 'key_from_me', 'zisfromme', 'ausgehend', 'outgoing', 'richtung',
                  'direction', 'message_direction'],
     text:       ['nachrichteninhalt', 'nachrichten_inhalt', 'inhalt', 'nachricht', 'content', 'message', 'text',
@@ -263,6 +265,7 @@
     replyTo:    ['antwort_auf_id', 'antwort_auf', 'reply_to_id', 'reply_to', 'in_reply_to'],
     reactionTo: ['reaktion_auf_id', 'reaktion_auf', 'reaction_to_id', 'reaction_to'],
     status:     ['status', 'zustand', 'state'],
+    read:       ['gelesen', 'is_read', 'read'],   // 1/0 – ergibt den Status „gelesen"
     deleted:    ['geloescht', 'gelöscht', 'deleted', 'is_deleted', 'was_deleted', 'remotely_deleted', 'wiederhergestellt',
                  'recovered'],
     source:     ['quelle', 'quelldatei', 'source', 'source_file', 'quelle_datei', 'herkunft', 'source_path'],
@@ -279,7 +282,7 @@
     time: 'Uhrzeit', tz: 'Zeitzone je Zeile', sender: 'Absender-Kennung', senderName: 'Absender-Name',
     fromMe: 'Von mir / Richtung', text: 'Nachrichtentext', type: 'Nachrichtentyp', media: 'Medienpfad',
     id: 'Nachrichten-ID', replyTo: 'Antwort auf (ID)', reactionTo: 'Reaktion auf (ID)', status: 'Status',
-    deleted: 'Gelöscht', source: 'Quelle (Datei/Zeile)', messenger: 'Messenger',
+    deleted: 'Gelöscht', source: 'Quelle (Datei/Zeile)', messenger: 'Messenger', read: 'Gelesen (1/0)',
     duration: 'Anrufdauer', video: 'Videoanruf', callResult: 'Anruf-Ergebnis'
   };
 
@@ -403,7 +406,7 @@
       media: media,
       replyTo: g('replyTo').trim(),
       reactionTo: g('reactionTo').trim(),
-      status: g('status').trim()
+      status: g('status').trim() || (istJa(g('read')) ? 'gelesen' : '')
     };
     // Nur setzen, was vorkommt – das hält gespeicherte Daten schlank
     if (zone) m.tz = zone;

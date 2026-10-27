@@ -10,6 +10,9 @@ modelle/*
 # Fertig gepacktes Archiv zum Weitergeben
 *.zip
 
+# Gebaute EXE (werkzeuge\baue-exe.ps1)
+dist/
+
 # Betriebssystem- und Editor-Krempel
 Thumbs.db
 desktop.ini

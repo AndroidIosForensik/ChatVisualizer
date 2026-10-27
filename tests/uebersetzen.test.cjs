@@ -137,3 +137,30 @@ test('Anzeige-Zeitzone: Uhrzeit, Tageswechsel und Kennzeichnung folgen der Umsch
   assert.equal(M.dayLabel(Date.now()), 'Heute');
   assert.equal(M.dayLabel(Date.now() - 86400000), 'Gestern');
 });
+
+test('Sprachpakete: alle Ladeaufträge starten sofort im Klick, Auswahl wird gemerkt', async () => {
+  const { ctx, erzeugt, settings } = environment();
+  const T = ctx.Translate;
+  const meldungen = [];
+  T.paketeMerken(['ru', 'en', 'de', 'ru']);
+  const auftrag = T.paketeLaden(['ru', 'en', 'de'], 'de', (code, pct, fertig) => meldungen.push([code, pct, fertig || '']));
+  // Noch kein await: Chrome lädt nur direkt nach einer Nutzeraktion
+  assert.deepEqual(Array.from(erzeugt), ['ru>de', 'en>de']);           // Zielsprache selbst nicht
+  await auftrag;
+  assert.ok(meldungen.some(m => m[0] === 'ru' && m[2] === 'ok'));
+  assert.deepEqual(Array.from(T.pakete.auswahl), ['ru', 'en', 'de']);   // ohne Doppelte
+  assert.equal(settings.get('trPakete'), '["ru","en","de"]');
+  assert.equal(await T.paketStand('ru', 'de'), 'available');
+  assert.equal(await T.paketStand('de', 'de'), 'available');
+});
+
+test('Sprachpakete: abgelehntes Paar wird gemeldet, ohne Übersetzungs-API klare Fehlermeldung', async () => {
+  const e = new Error('Unable to create translator for the given source and target language.'); e.name = 'NotSupportedError';
+  const { ctx } = environment({ fehler: e });
+  const meldungen = [];
+  await ctx.Translate.paketeLaden(['sq'], 'de', (code, pct, fertig) => meldungen.push([code, fertig || '']));
+  assert.deepEqual(meldungen.find(m => m[1]), ['sq', 'nicht angeboten']);
+  delete ctx.Translator;
+  await assert.rejects(() => ctx.Translate.paketeLaden(['ru'], 'de', () => {}), /Chrome oder Edge/);
+  assert.equal(await ctx.Translate.paketStand('ru', 'de'), 'fehlt');
+});

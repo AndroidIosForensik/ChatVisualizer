@@ -22,6 +22,30 @@ Windows: double-click `ChatVisualizer starten.cmd`. The browser opens by itself;
 window next to it is the local server – close it to stop. Nothing needs to be installed,
 PowerShell is enough. The folder also works from a USB stick or a network drive.
 
+### As a single EXE (Windows)
+
+`ChatVisualizer.exe` contains the whole program in one file. Double-click it: on first start
+it unpacks itself to `%LOCALAPPDATA%\ChatVisualizer`, starts the local server and opens the
+browser; close the console window to stop. It only needs .NET Framework 4, which ships with
+every Windows 10/11.
+
+- Same address as the folder version (`http://localhost:8777`), so chats stored in the browser
+  are kept. If another ChatVisualizer window is still running, the EXE falls back to 8778 …,
+  where those chats are not visible – close the other window first.
+- The speech recognition model is downloaded in the background on first start (242 MB,
+  verified, resumable); everything else works right away. The variant *with* the model
+  (about 260 MB) needs no network at all.
+- The EXE is not signed; Windows SmartScreen may warn on first start ("More info" → "Run anyway").
+
+Build it yourself (no download, using the C# compiler that ships with Windows):
+
+```powershell
+.\werkzeuge\baue-exe.ps1              # dist\ChatVisualizer.exe, about 9 MB
+.\werkzeuge\baue-exe.ps1 -MitModell   # with the model; run "ChatVisualizer starten.cmd" once first
+```
+
+EXE options: `--kein-browser` (no browser), `--kein-modell` (no model download), `--standardbrowser` (default browser instead of Chrome/Edge).
+
 macOS and Linux: `./start.sh`, which uses python3, python, php or ruby, whichever is
 available.
 
@@ -396,6 +420,21 @@ Translation uses the built-in translation of Chrome and Edge (Translator API, ve
 and later). It works on-device: the first time, the browser downloads a language pack for
 the language pair, with progress shown in the panel. After that every text stays on the
 computer.
+
+That is why `ChatVisualizer.exe`, `ChatVisualizer starten.cmd` and `start.sh` open the page in
+**Chrome** first, then **Edge**, and only fall back to the default browser if neither is
+installed (EXE: `--standardbrowser` forces the default browser).
+
+### Preloading language packs
+
+On the start page ("Sprachpakete für die Übersetzung vorab laden") and in the 🌐 panel the
+packs can be prepared in advance, e.g. before a training session or for a computer that will
+be offline later: choose the target language, tick the source languages ("häufige wählen"
+selects English, Russian, Ukrainian, Turkish, Arabic, Polish, Romanian, Persian) and click
+**Ausgewählte laden**. Every language shows its status (ready, not loaded, loading …%, not
+offered). The browser keeps the packs in its profile, so they are available immediately on the
+next start, even offline; the start page shows which of the selected packs are ready. Packs
+belong to the browser profile – another browser or Windows user needs them again.
 
 The browser detects the source language itself (`LanguageDetector`). If detection is not
 available, a simple heuristic steps in; if that is not enough for a short sentence, the

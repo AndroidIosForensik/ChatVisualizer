@@ -21,6 +21,33 @@ selbst, das Fenster daneben ist der lokale Server; zum Beenden schließen. Insta
 werden muss nichts, es genügt PowerShell. Der Ordner funktioniert auch vom USB-Stick
 oder Netzlaufwerk.
 
+### Als eine einzige EXE (Windows)
+
+Wem die Ordnerstruktur zu viel ist: `ChatVisualizer.exe` enthält das ganze Programm in
+einer Datei. Doppelklick genügt – die EXE entpackt sich beim ersten Start unsichtbar nach
+`%LOCALAPPDATA%\ChatVisualizer`, startet den lokalen Server und öffnet den Browser. Zum
+Beenden das Konsolenfenster schließen. Voraussetzung ist nur das .NET Framework 4, das zu
+jedem Windows 10/11 gehört.
+
+- Adresse wie beim Ordner (`http://localhost:8777`): im Browser gespeicherte Chats bleiben
+  erhalten. Läuft noch ein anderes ChatVisualizer-Fenster, weicht die EXE auf 8778 … aus –
+  dort sieht man die gespeicherten Chats nicht. Also vorher das andere Fenster schließen.
+- Das Spracherkennungsmodell lädt die EXE beim ersten Start im Hintergrund nach (242 MB,
+  geprüft, fortsetzbar); alles andere ist sofort benutzbar. Die Variante *mit* Modell
+  (rund 260 MB) braucht gar kein Netz.
+- Neue Fassungen ersetzen beim Start die alte entpackte Fassung; das Modell bleibt liegen.
+- Die EXE ist nicht signiert. Beim ersten Start aus dem Internet kann Windows SmartScreen
+  warnen („Weitere Informationen“ → „Trotzdem ausführen“).
+
+Selbst bauen (ohne Download, mit dem C#-Compiler aus Windows):
+
+```powershell
+.\werkzeuge\baue-exe.ps1              # dist\ChatVisualizer.exe, rund 9 MB
+.\werkzeuge\baue-exe.ps1 -MitModell   # mit Modell; vorher einmal "ChatVisualizer starten.cmd" ausführen
+```
+
+Optionen der EXE: `--kein-browser`, `--kein-modell`, `--standardbrowser`.
+
 macOS und Linux: `./start.sh`, benutzt python3, python, php oder ruby, je nachdem was
 vorhanden ist.
 
@@ -396,6 +423,29 @@ bereits Übersetztes wird übersprungen.
 Version 138). Sie arbeitet on-device: der Browser lädt beim ersten Mal ein Sprachpaket
 für das jeweilige Sprachpaar, der Fortschritt steht im Panel. Danach bleibt jeder Text
 auf dem Rechner.
+
+Deshalb öffnen `ChatVisualizer.exe`, `ChatVisualizer starten.cmd` und `start.sh` die Seite
+zuerst in **Chrome**, dann in **Edge**, und nur wenn beide fehlen im Standardbrowser
+(EXE: `--standardbrowser` erzwingt den Standardbrowser).
+
+### Sprachpakete vorab laden
+
+Auf der Startseite („Sprachpakete für die Übersetzung vorab laden“) und im 🌐-Panel
+(„Sprachpakete vorab laden …“) lassen sich die Pakete vorbereiten, etwa vor einer Schulung
+oder für einen Rechner, der später offline läuft:
+
+- Zielsprache wählen, dann die Ausgangssprachen ankreuzen. „häufige wählen“ nimmt Englisch,
+  Russisch, Ukrainisch, Türkisch, Arabisch, Polnisch, Rumänisch und Persisch.
+- Neben jeder Sprache steht ihr Stand: ✓ bereit, nicht geladen, wird geladen … %, nicht
+  angeboten.
+- **Ausgewählte laden** holt alle gewählten Pakete auf einmal, dazu die automatische
+  Spracherkennung. Der Browser lädt nur direkt nach diesem Klick; die Aufträge starten
+  deshalb alle sofort.
+- Die Pakete speichert der Browser in seinem Profil. Beim nächsten Start sind sie sofort
+  da, auch ohne Internet. ChatVisualizer merkt sich die Auswahl und zeigt auf der
+  Startseite, was davon bereitliegt und was fehlt („fehlen: … · jetzt laden“).
+- Die Pakete gehören zum Browserprofil, nicht zu ChatVisualizer: Ein anderer Browser oder
+  ein anderer Windows-Benutzer braucht sie erneut.
 
 Die Ausgangssprache erkennt der Browser selbst (`LanguageDetector`). Fehlt die Erkennung,
 springt eine einfache Heuristik ein; reicht auch die bei einem kurzen Satz nicht, zählt

@@ -279,6 +279,73 @@
   };
 
   /* ------------------------------------------------------------------ *
+   * Sprachpakete vorab laden
+   *
+   * Chrome/Edge speichern die Pakete im Browserprofil – einmal geladen, sind
+   * sie beim nächsten Start wieder da. Laden darf der Browser nur direkt nach
+   * einem Klick; paketeLaden() startet deshalb alle Aufträge sofort, ohne
+   * vorher auf etwas zu warten. Gemerkt wird nur die Auswahl (welche Sprachen).
+   * ------------------------------------------------------------------ */
+  const pakete = { auswahl: Store.settings.get('trPakete', []) };
+
+  function paketeMerken(codes) {
+    pakete.auswahl = Array.from(new Set(codes));
+    Store.settings.set('trPakete', pakete.auswahl);
+  }
+
+  /**
+   * Stand eines Sprachpaars: 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'fehlt'
+   * ('fehlt' = Browser ohne Übersetzung bzw. ohne Antwort)
+   */
+  async function paketStand(src, tgt) {
+    if (!('Translator' in global)) return 'fehlt';
+    if (src === tgt) return 'available';
+    try {
+      return await withTimeout(Translator.availability({ sourceLanguage: src, targetLanguage: tgt }), 15000, 'Verfügbarkeit');
+    } catch (e) { return 'fehlt'; }
+  }
+
+  /** Stand der eingebauten Spracherkennung (für „automatisch erkennen") */
+  async function erkennungStand() {
+    if (!('LanguageDetector' in global)) return 'fehlt';
+    try { return await withTimeout(LanguageDetector.availability(), 15000, 'Spracherkennung'); }
+    catch (e) { return 'fehlt'; }
+  }
+
+  /**
+   * Gewählte Sprachpakete laden – aus einem Klick heraus aufrufen.
+   * @param {string[]} quellen Ausgangssprachen
+   * @param {string} ziel Zielsprache
+   * @param {(code: string, pct: number, fertig?: string) => void} melde code '*' = Spracherkennung;
+   *        fertig: 'ok' oder eine Fehlermeldung
+   * @returns {Promise<void>}
+   */
+  function paketeLaden(quellen, ziel, melde) {
+    if (!('Translator' in global)) return Promise.reject(new Error('Dieser Browser übersetzt nicht selbst – Chrome oder Edge ab Version 138 nutzen.'));
+    const monitor = code => ({
+      monitor(m) { m.addEventListener('downloadprogress', e => melde(code, ladeProzent(e))); }
+    });
+    // Alle create()-Aufrufe sofort – die Nutzeraktion gilt nur kurz
+    const auftraege = quellen.filter(q => q !== ziel).map(q => {
+      melde(q, 0);
+      return Translator.create(Object.assign({ sourceLanguage: q, targetLanguage: ziel }, monitor(q))).then(inst => {
+        builtin.pairs.set(q + '>' + ziel, Promise.resolve(inst));
+        melde(q, 100, 'ok');
+      }, e => melde(q, -1, e && e.name === 'NotAllowedError' ? 'braucht einen Klick – bitte noch einmal'
+        : (e && e.name === 'NotSupportedError') || /unavailable|not supported|unable to create/i.test(String(e && e.message))
+          ? 'nicht angeboten' : String((e && e.message) || e)));
+    });
+    if ('LanguageDetector' in global) {
+      melde('*', 0);
+      auftraege.push(LanguageDetector.create(monitor('*')).then(det => {
+        detectorPromise = Promise.resolve(det);
+        melde('*', 100, 'ok');
+      }, e => melde('*', -1, String((e && e.message) || e))));
+    }
+    return Promise.all(auftraege).then(() => {});
+  }
+
+  /* ------------------------------------------------------------------ *
    * Verfügbarkeit
    * ------------------------------------------------------------------ */
   const status = { ok: false, detail: '', checking: false, paar: '' };
@@ -428,6 +495,8 @@
   function cancel() { job.cancel = true; }
 
   global.Translate = {
+    pakete: pakete, paketeMerken: paketeMerken, paketStand: paketStand, erkennungStand: erkennungStand,
+    paketeLaden: paketeLaden,
     LANGS: LANGS, settings: settings, saveSettings: saveSettings,
     sourceFor: sourceFor, setSource: setSource, sprachName: sprachName, vorbereiten: vorbereiten,
     erkannteSprache: convKey => convLang.get(convKey) || null,

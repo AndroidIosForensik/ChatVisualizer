@@ -131,16 +131,32 @@
     }
 
     /* Zeilen einer Tabelle (eigene CSV oder zusammengeführter Bericht) übernehmen */
-    function zeilenUebernehmen(header, data, ersatzName, map, auswertung) {
+    function zeilenUebernehmen(header, data, ersatzName, map, auswertung, dateiname) {
       map = map || M.buildMapping(header).map;
       const vorkommen = new Map();
+      // Eine ID-Spalte, deren Werte sich wiederholen, taugt nicht als Schlüssel:
+      // gleiche ID hieße „dieselbe Nachricht" und Zeilen würden sich überschreiben.
+      // Dann wie ohne ID-Spalte eine Kennung aus dem Inhalt bilden.
+      let idTaugt = !!map.id;
+      if (idTaugt) {
+        const ids = new Set();
+        for (const r of data) {
+          const v = String(r[map.id] || '').trim();
+          if (v && ids.has(v)) { idTaugt = false; break; }
+          ids.add(v);
+        }
+        if (!idTaugt) {
+          probleme.push('<b>' + esc(dateiname || ersatzName) + '</b>: Die Spalte „' + esc(map.id) +
+            '“ enthält doppelte Werte und wird nicht als Nachrichten-ID verwendet.');
+        }
+      }
       for (let zeile = 0; zeile < data.length; zeile++) {
         const m = M.rowToMessage(data[zeile], map, ersatzName, lauf++, auswertung || {});
         // Völlig leere Zeilen (kein Text, kein Medium, keine Reaktion) überspringen –
         // gelöschte Nachrichten nicht: dass es sie gab, ist selbst ein Befund
         if (!m.text && !m.media && !m.reactionTo && m.type === 'text' && !m.deleted) { uebersprungen++; continue; }
         m.sourceOrder = zeile;   // gleiche Zeitstempel behalten die Reihenfolge der Datei
-        if (!map.id || !String(data[zeile][map.id] || '').trim()) {
+        if (!idTaugt || !String(data[zeile][map.id] || '').trim()) {
           // Ohne ID: stabile ID aus dem Inhalt, damit ein erneuter
           // Import aktualisiert statt zu verdoppeln.
           const signatur = WhatsApp.fingerprint(JSON.stringify([m.conv, m.tsRaw, m.sender, m.text, m.media, m.reactionTo]));
@@ -226,7 +242,7 @@
         probleme.push('<b>' + esc(datei.name) + '</b>: empfohlene Spalten fehlen (' +
           esc(missing.map(spaltenName).join(', ')) + ')');
       }
-      zeilenUebernehmen(header, data, ersatzName, map, auswertung);
+      zeilenUebernehmen(header, data, ersatzName, map, auswertung, datei.name);
     }
 
     const anhaenge = files.filter(f => !chatDateien.has(f) && !/\.(csv|tsv|zip)$/i.test(f.name));

@@ -19,7 +19,7 @@
 
   /* Reihenfolge im Dialog: erst was einen Chat ausmacht, dann Details */
   const FELDER = ['conv', 'convName', 'ts', 'date', 'time', 'sender', 'senderName', 'fromMe', 'text', 'media',
-    'type', 'id', 'replyTo', 'reactionTo', 'status', 'deleted', 'source', 'duration', 'video', 'callResult',
+    'type', 'id', 'replyTo', 'reactionTo', 'status', 'read', 'deleted', 'source', 'duration', 'video', 'callResult',
     'tz', 'messenger'];
 
   const ERKLAERUNG = {

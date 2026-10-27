@@ -392,6 +392,7 @@
     PdfBericht.verdrahten();
     Medienordner.verdrahten();
     Uebersetzen.verdrahten();
+    Sprachpakete.verdrahten();
     Sprachnachrichten.verdrahten();
     Lightbox.verdrahten();
     Fortschritt.verdrahten();

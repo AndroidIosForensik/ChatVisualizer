@@ -54,7 +54,16 @@
   function toObjects(text) {
     const { rows, delimiter } = parse(text);
     if (!rows.length) return { header: [], data: [], delimiter };
-    const header = rows[0].map(h => h.trim().toLowerCase().replace(/^﻿/, ''));
+    // Doppelte Spaltennamen (typisch für SQL-JOINs: id, name …) durchnummerieren –
+    // sonst überschriebe die letzte Spalte die erste und z. B. die Nachrichten-ID
+    // würde zur ID einer verknüpften Tabelle.
+    const gesehen = new Map();
+    const header = rows[0].map(h => {
+      const name = h.trim().toLowerCase().replace(/^﻿/, '');
+      const n = (gesehen.get(name) || 0) + 1;
+      gesehen.set(name, n);
+      return n === 1 ? name : name + ' (' + n + ')';
+    });
     const data = [];
     for (let r = 1; r < rows.length; r++) {
       const cells = rows[r];

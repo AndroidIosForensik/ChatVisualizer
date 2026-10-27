@@ -69,9 +69,17 @@ echo "  Ordner:  $DIR"
 echo "  Beenden: Strg+C"
 echo ""
 
-# Browser oeffnen, sobald der Server steht
+# Browser oeffnen, sobald der Server steht – zuerst Chrome (bzw. Chromium/Edge),
+# denn nur diese uebersetzen lokal; sonst der Standardbrowser
 ( sleep 1
-  if have open; then open "$URL"
+  if have open && open -Ra "Google Chrome" >/dev/null 2>&1; then open -a "Google Chrome" "$URL"
+  elif have open && open -Ra "Microsoft Edge" >/dev/null 2>&1; then open -a "Microsoft Edge" "$URL"
+  elif have google-chrome; then google-chrome "$URL" >/dev/null 2>&1
+  elif have google-chrome-stable; then google-chrome-stable "$URL" >/dev/null 2>&1
+  elif have chromium; then chromium "$URL" >/dev/null 2>&1
+  elif have chromium-browser; then chromium-browser "$URL" >/dev/null 2>&1
+  elif have microsoft-edge; then microsoft-edge "$URL" >/dev/null 2>&1
+  elif have open; then open "$URL"
   elif have xdg-open; then xdg-open "$URL" >/dev/null 2>&1
   else echo "  Browser bitte manuell oeffnen: $URL"
   fi ) &
