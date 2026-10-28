@@ -302,3 +302,25 @@ test('Import: altes Schema meldet sich verständlich, die TSVs bleiben dann im S
   assert.match(messages.at(-1), /alte Schema/);
   assert.match(messages.at(-1), /WhatsApp-Tabellen des ALEAPP-Berichts verwendet/);
 });
+
+test('Fallordner des Decryptors: Hashliste, Protokoll und Rohausgabe lösen keinen Zuordnungsdialog aus', async () => {
+  const { ctx, messages } = environment();
+  let dialoge = 0;
+  ctx.Spaltenzuordnung.fragen = async () => { dialoge++; return null; };
+  const files = [
+    new File([await msgstore()], 'msgstore.db'),
+    new File(['﻿Vorgang;Quelle (relativ);Ziel (relativ);Größe Quelle;SHA-256 Quelle;Größe Ziel;SHA-256 Ziel\n' +
+      'entschlüsselt;Databases/msgstore.db.crypt15;extraktion/msgstore.db;1;ab;2;cd\n'], 'Hashliste.csv'),
+    new File(['Start: 28.10.2026\nWhatsApp-Ordner: …\n'], 'Protokoll.txt'),
+    new File(['Media/WhatsApp Images/IMG-1.jpg\n'], 'Medien_fehlend.txt'),
+    new File(['# content query\nRow: 0 contact_id=1, display_name=A\n'], 'kontakte_roh.txt'),
+    new File(['spalte_a,spalte_b\n1,2\n'], 'irgendwas.csv')
+  ];
+  await ctx.Import.importiereDateien(files, { fromFolder: true });
+  assert.equal(dialoge, 0);
+  assert.ok(ctx.Model.state.messages.length > 0);
+  assert.match(messages.at(-1), /weitere Dateien ohne Chats übergangen/);
+  assert.equal(ctx.Datenbanken.istBeiwerk('Hashliste.csv'), true);
+  assert.equal(ctx.Datenbanken.istBeiwerk('export.csv', ['datei', 'SHA-256']), true);
+  assert.equal(ctx.Datenbanken.istBeiwerk('chat.csv', ['chatname', 'nachrichteninhalt']), false);
+});
