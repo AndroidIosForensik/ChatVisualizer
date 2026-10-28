@@ -19,6 +19,11 @@
   const entries = [];
   const wurzeln = new Map();   // Quelle -> { id, label, handles: [], n }
   const ALLGEMEIN = 'allgemein';
+  /* Ordner werden bis in diese Tiefe gelesen: In Extraktionen liegen Medien tief
+     (WA_ADB_…/extraktion/data/media/0/Android/media/com.whatsapp/WhatsApp/Media/
+     WhatsApp Images/Sent – im ALEAPP-Bericht noch eine Ebene tiefer). */
+  const MAX_TIEFE = 24;
+  const MAX_DATEIEN = 100000;
   const REGISTER = 'medienQuellen';
   let version = 0;             // erhöht sich bei jeder Änderung (für Neu-Rendern)
 
@@ -390,10 +395,10 @@
 
   /* ---- Quelle 2: File System Access API (dauerhaft verknüpfbar) ---------- */
   async function scanHandle(dirHandle, prefix, depth, budget, quelle) {
-    if (depth > 8) return 0;
+    if (depth > MAX_TIEFE) { budget.zuTief = true; return 0; }
     let n = 0;
     for await (const [name, handle] of dirHandle.entries()) {
-      if (budget.left <= 0) return n;
+      if (budget.left <= 0) { budget.voll = true; return n; }
       const rel = prefix ? prefix + '/' + name : name;
       if (handle.kind === 'directory') {
         n += await scanHandle(handle, rel, depth + 1, budget, quelle);
@@ -406,13 +411,20 @@
     return n;
   }
 
+  /* Nicht ganz gelesen? Für die Übersicht merken */
+  function unvollstaendig(w, budget) {
+    if (budget.voll) w.hinweis = 'nur die ersten ' + MAX_DATEIEN.toLocaleString('de-DE') + ' Dateien gelesen';
+    else if (budget.zuTief) w.hinweis = 'Unterordner tiefer als ' + MAX_TIEFE + ' Ebenen nicht gelesen';
+  }
+
   /** @param {{max?: number, quelle?: string}} [opts] */
   async function attachDirectoryHandle(handle, opts) {
     const quelle = (opts && opts.quelle) || ALLGEMEIN;
     const w = wurzel(quelle, handle.name || 'Medien');
     if (!w.handles.includes(handle)) w.handles.push(handle);
-    const budget = { left: (opts && opts.max) || 50000 };
+    const budget = { left: (opts && opts.max) || MAX_DATEIEN };
     const n = await scanHandle(handle, handle.name || '', 0, budget, quelle);
+    unvollstaendig(w, budget);
     version++;
     return n;
   }
@@ -423,7 +435,8 @@
   }
 
   async function scanEntry(entry, prefix, depth, budget, quelle) {
-    if (depth > 8 || budget.left <= 0) return 0;
+    if (depth > MAX_TIEFE) { budget.zuTief = true; return 0; }
+    if (budget.left <= 0) { budget.voll = true; return 0; }
     const rel = prefix ? prefix + '/' + entry.name : entry.name;
     if (entry.isFile) {
       const file = await new Promise(res => entry.file(res, () => res(null)));
@@ -443,9 +456,10 @@
   }
 
   async function attachDropEntry(entry, quelle) {
-    const budget = { left: 50000 };
-    wurzel(quelle || ALLGEMEIN, entry.name);
+    const budget = { left: MAX_DATEIEN };
+    const w = wurzel(quelle || ALLGEMEIN, entry.name);
     const n = await scanEntry(entry, '', 0, budget, quelle);
+    unvollstaendig(w, budget);
     version++;
     return n;
   }
@@ -484,7 +498,8 @@
     quelleName: quelleName, ALLGEMEIN: ALLGEMEIN,
     hatOrdner: id => wurzeln.has(id) && wurzeln.get(id).n > 0,
     eintraege: quelle => entries.filter(e => e.wurzel === quelle),
-    ordner: () => Array.from(wurzeln.values()).filter(w => w.n > 0).map(w => ({ id: w.id, label: w.label, n: w.n, handles: w.handles.slice() })),
+    ordner: () => Array.from(wurzeln.values()).filter(w => w.n > 0)
+      .map(w => ({ id: w.id, label: w.label, n: w.n, handles: w.handles.slice(), hinweis: w.hinweis || '' })),
     count: quelle => quelle ? (wurzeln.has(quelle) ? wurzeln.get(quelle).n : 0) : entries.length,
     label: () => Array.from(wurzeln.values()).filter(w => w.n > 0).map(w => w.label).join(', '),
     version: () => version,

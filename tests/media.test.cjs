@@ -191,3 +191,20 @@ test('Medienquellen: reinen Medienordner einem Import zuordnen, Quelle trennen',
   assert.equal(M.count(), 0);
   assert.equal(M.quelleName(csv), 'abfrage.csv');
 });
+
+test('Ordner: Medien tief in einer Extraktion werden gefunden (WA_ADB_…/extraktion/…/WhatsApp/Media/…)', async () => {
+  const { ctx } = setup();
+  // Nachbildung eines FileSystemDirectoryHandle: { name: Inhalt | Unterordner }
+  const handle = (name, inhalt) => typeof inhalt === 'string'
+    ? { kind: 'file', name, async getFile() { return new File([inhalt], name); } }
+    : { kind: 'directory', name, async *entries() { for (const [n, i] of Object.entries(inhalt)) yield [n, handle(n, i)]; } };
+  const tief = ['extraktion', 'data', 'media', '0', 'Android', 'media', 'com.whatsapp', 'WhatsApp', 'Media', 'WhatsApp Images', 'Sent']
+    .reduceRight((innen, ordner) => ({ [ordner]: innen }), { 'IMG-20260529-WA0000.jpg': 'bild' });
+  const q = ctx.Media.neueQuelle('WA_ADB_20261028', 'ordner');
+  const n = await ctx.Media.attachDirectoryHandle(handle('WA_ADB_20261028', tief), { quelle: q });
+  assert.equal(n, 1);
+  const treffer = ctx.Media.lookup({ media: 'Media/WhatsApp Images/Sent/IMG-20260529-WA0000.jpg', quelle: q });
+  assert.ok(treffer);
+  assert.equal(await (await ctx.Media.getFile(treffer)).text(), 'bild');
+  assert.equal(ctx.Media.ordner()[0].hinweis, '');
+});

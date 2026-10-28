@@ -128,7 +128,8 @@
         (z.withMedia ? '<div class="mq-zahl"><span class="mq-balken"><span style="width:' + quote + '%"></span></span>' +
           z.matched.toLocaleString('de-DE') + ' von ' + z.withMedia.toLocaleString('de-DE') + ' Medien gefunden' +
           (z.mehrdeutig ? ' · <span class="mq-warn">' + z.mehrdeutig + ' mehrdeutig</span>' : '') + '</div>' : '') +
-        '<div class="mq-ordner">' + (o ? '📁 ' + esc(o.label) + ' · ' + mehr(o.n, 'Datei', 'Dateien')
+        '<div class="mq-ordner">' + (o ? '📁 ' + esc(o.label) + ' · ' + mehr(o.n, 'Datei', 'Dateien') +
+          (o.hinweis ? ' · <span class="mq-warn">' + esc(o.hinweis) + '</span>' : '')
           : warten ? '🔌 „' + esc(warten[0].name) + '“ wartet auf Freigabe' : 'kein Medienordner verbunden') + '</div>' +
         (zustand === 'fehlt' || zustand === 'teil' ? '<details class="mq-fehlend"><summary>Fehlende Dateien</summary><ul>' +
           z.fehlend.slice(0, 30).map(f => '<li><code>' + esc(f) + '</code></li>').join('') +
