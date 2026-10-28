@@ -153,7 +153,7 @@
     const dbs = a.dateien.filter(d => Datenbanken.istDatenbankName(d.name) && !/^_lava/i.test(d.name));
     const zips = a.dateien.filter(d => /\.zip$/i.test(d.name));
     const chats = a.dateien.filter(d => /\.txt$/i.test(d.name) && (/^whatsapp/i.test(d.name) || /^_chat\.txt$/i.test(d.name)));
-    const tabellen = a.dateien.filter(d => /\.(csv|tsv)$/i.test(d.name) && !imBericht(d));
+    const tabellen = a.dateien.filter(d => /\.(csv|tsv)$/i.test(d.name) && !imBericht(d) && !Datenbanken.istBeiwerk(d.name));
     const medien = a.dateien.filter(d => MEDIEN.test(d.name) && !/\.nomedia$/i.test(d.name));
     const ordnerVon = d => pfad(d).replace(/[^/]*$/, '');
 

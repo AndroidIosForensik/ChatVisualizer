@@ -132,5 +132,14 @@
     return {};
   }
 
-  global.Datenbanken = { KATALOG, STATUS_TEXT, eintrag, istDatenbankName, pruefe };
+  /* Begleitdateien von Werkzeugen – Hashlisten, Protokolle, Rohausgaben – sind nie ein Chat.
+     Der WhatsAppE2EDecryptor legt sie in jeden Fallordner. */
+  const BEIWERK = /^(hashliste|hashes|protokoll|medien_fehlend|kontakte_roh)\.(csv|tsv|txt)$/i;
+
+  function istBeiwerk(name, header) {
+    if (BEIWERK.test(String(name || ''))) return true;
+    return (header || []).some(h => /\b(sha-?256|sha-?1|md5)\b/i.test(String(h)));
+  }
+
+  global.Datenbanken = { KATALOG, STATUS_TEXT, eintrag, istDatenbankName, istBeiwerk, pruefe };
 })(window);

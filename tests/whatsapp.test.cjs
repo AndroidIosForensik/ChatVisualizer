@@ -32,7 +32,7 @@ function environment() {
   ctx.window = ctx;
   for (const file of ['kern/helfer', 'kern/csv', 'kern/model', 'daten/messengers', 'daten/media',
     'daten/archive', 'daten/whatsapp', 'daten/aleapp', 'daten/aleapp-whatsapp', 'daten/aleapp-apps',
-    'daten/ileapp', 'daten/geraete-db', 'daten/whatsapp-db',
+    'daten/ileapp', 'daten/geraete-db', 'daten/whatsapp-db', 'daten/datenbanken',
     'bedienung/whatsapp-import', 'bedienung/spaltenzuordnung', 'bedienung/import']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', file + '.js'), 'utf8'), ctx);
   }

@@ -29,7 +29,7 @@ function environment() {
   ctx.window = ctx;
   for (const f of ['kern/helfer', 'kern/csv', 'kern/model', 'daten/messengers', 'daten/media', 'daten/archive',
     'daten/whatsapp', 'daten/aleapp', 'daten/aleapp-whatsapp', 'daten/aleapp-apps', 'daten/ileapp', 'daten/geraete-db',
-    'daten/whatsapp-db', 'bedienung/whatsapp-import', 'bedienung/spaltenzuordnung', 'bedienung/import']) {
+    'daten/whatsapp-db', 'daten/datenbanken', 'bedienung/whatsapp-import', 'bedienung/spaltenzuordnung', 'bedienung/import']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', f + '.js'), 'utf8'), ctx);
   }
   ctx.initSqlJs = initSqlJs;

@@ -328,10 +328,12 @@
     }
 
     // Übrige Dateien: iLEAPP, rohe Geräte-Datenbanken, eigenes Format, sonst nachfragen
-    let uebergangen = 0;
+    let uebergangen = 0, beiwerk = 0;
     for (const t of tabellen) {
       let { header, data } = t;
       const datei = t.datei;
+      // Hashliste, Protokoll … eines Werkzeugs: still übergehen
+      if (Datenbanken.istBeiwerk(datei.name, header)) { beiwerk++; chatDateien.add(datei); continue; }
       const umgesetzt = Ileapp.umsetzen(header, data) || GeraeteDB.umsetzen(header, data);
       if (umgesetzt) { ({ header, data } = umgesetzt); erkannt.add(umgesetzt.bericht); }
       let { map, missingRequired, missing, utc } = M.buildMapping(header);
@@ -355,6 +357,11 @@
 
       /* Fremde Spalten: einmal nachfragen, die Antwort gilt dann für alle
          Dateien mit denselben Spalten. Das eigene Format geht ohne Frage durch. */
+      // Liegt im selben Import eine Datenbank oder ein Bericht, sind weitere unbekannte Tabellen
+      // Beiwerk des Ordners – nicht nachfragen
+      if (!umgesetzt && (waBericht || berichtsApps.length) && !Spaltenzuordnung.gemerkt(header) &&
+          Spaltenzuordnung.noetig(header, map, missingRequired)) { beiwerk++; continue; }
+
       if (!umgesetzt) {
         const gemerkt = Spaltenzuordnung.gemerkt(header);
         let wahl = gemerkt;
@@ -429,6 +436,8 @@
     else if (kontakte.length) text += '<br><span class="toast-note">Kontaktliste ' + esc(kontaktDateien.join(', ')) +
       ': ' + kontakte.length + ' Einträge</span>';
     if (erkannt.size) text += '<br><span class="toast-note">Erkannt: ' + esc(Array.from(erkannt).join(', ')) + '</span>';
+    if (beiwerk) text += '<br><span class="toast-note">' + beiwerk + (beiwerk === 1 ? ' weitere Datei' : ' weitere Dateien') +
+      ' ohne Chats übergangen (Hashliste, Protokoll …)</span>';
     const medienZahl = Media.stats(state.messages).jeQuelle.get(quelle);
     if (medienZahl && medienZahl.withMedia) {
       text += '<br><span class="toast-note">Medien: ' + (Media.hatOrdner(quelle)
