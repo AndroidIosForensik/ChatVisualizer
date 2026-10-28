@@ -89,6 +89,9 @@
     }
   }
 
+  // Auch für das direkte Lesen der Datenbank (whatsapp-db.js)
+  A.whatsapp = { systemText, kurz, liste, typ };
+
   A.quelle({
     app: 'WhatsApp', messenger: 'WhatsApp',
     tabellen: {

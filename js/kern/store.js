@@ -3,12 +3,13 @@
   'use strict';
 
   const DB_NAME = 'chatvisualizer';
-  const DB_VERSION = 6;
+  const DB_VERSION = 7;
   const STORE = 'chats';
   const HANDLES = 'handles';
   const TRANS = 'translations';
   const SCRIPTS = 'transcripts';
   const DOCS = 'documents';
+  const TABELLEN = 'tabellen';     // Rohdaten importierter Tabellen, für „Spalten neu zuordnen"
   let dbPromise = null;
   let available = true;
 
@@ -16,7 +17,7 @@
   const FIELDS = ['key', 'id', 'messenger', 'conv', 'convKey', 'ts', 'tsRaw',
                   'sender', 'text', 'type', 'media', 'replyTo', 'reactionTo', 'status', 'sourceOrder', 'convName', 'fromMe'];
   /* Nur gespeichert, wenn gesetzt – die meisten Nachrichten haben sie nicht */
-  const OPTIONAL = ['senderName', 'deleted', 'tz', 'source', 'duration', 'video', 'callResult'];
+  const OPTIONAL = ['senderName', 'deleted', 'tz', 'source', 'duration', 'video', 'callResult', 'tabelle', 'medienQuelle'];
 
   function plain(m) {
     const o = {};
@@ -39,6 +40,7 @@
         if (!db.objectStoreNames.contains(TRANS)) db.createObjectStore(TRANS, { keyPath: 'key' });
         if (!db.objectStoreNames.contains(SCRIPTS)) db.createObjectStore(SCRIPTS, { keyPath: 'key' });
         if (!db.objectStoreNames.contains(DOCS)) db.createObjectStore(DOCS, { keyPath: 'key' });
+        if (!db.objectStoreNames.contains(TABELLEN)) db.createObjectStore(TABELLEN, { keyPath: 'id' });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => { available = false; resolve(null); };
@@ -96,10 +98,40 @@
     const db = await openDB();
     if (!db) return;
     return new Promise((resolve) => {
-      const tx = db.transaction(STORE, 'readwrite');
+      const tx = db.transaction([STORE, TABELLEN], 'readwrite');
       tx.objectStore(STORE).clear();
+      tx.objectStore(TABELLEN).clear();
       tx.oncomplete = () => resolve();
       tx.onerror = () => resolve();
+    });
+  }
+
+  /* Importierte Tabellen: { id, datei, header, data, wahl, ersatzName, zeit } –
+     damit sich die Spaltenzuordnung später ändern lässt, ohne die Datei neu zu laden */
+  async function putTabelle(satz) {
+    const db = await openDB();
+    if (!db) return false;
+    return new Promise((resolve) => {
+      let tx;
+      try { tx = db.transaction(TABELLEN, 'readwrite'); }
+      catch (e) { return resolve(false); }
+      tx.objectStore(TABELLEN).put(satz);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+      tx.onabort = () => resolve(false);
+    });
+  }
+
+  async function getTabelle(id) {
+    const db = await openDB();
+    if (!db) return null;
+    return new Promise((resolve) => {
+      let tx;
+      try { tx = db.transaction(TABELLEN, 'readonly'); }
+      catch (e) { return resolve(null); }
+      const req = tx.objectStore(TABELLEN).get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
     });
   }
 
@@ -302,6 +334,7 @@
   global.Store = {
     putConversations: putConversations, getAll: getAll, deleteConv: deleteConv,
     clear: clear, settings: settings, isAvailable: () => available,
+    putTabelle: putTabelle, getTabelle: getTabelle,
     saveHandle: saveHandle, getHandle: getHandle, deleteHandle: deleteHandle,
     putTranslations: putTranslations, getTranslations: getTranslations,
     deleteTranslations: deleteTranslations, clearTranslations: clearTranslations,

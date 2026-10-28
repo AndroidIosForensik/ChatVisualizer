@@ -28,7 +28,7 @@
         <button id="exportAll" class="icon-btn" title="Alles als JSON exportieren">⤓</button>
         <button id="clearBtn" class="icon-btn danger" title="Alle Daten löschen">🗑</button>
         <button id="mediaBtn" class="btn" title="Medienordner verbinden (Bilder, Videos, Sprachnachrichten)">🖼</button>
-        <button class="btn primary import-trigger" title="CSV oder WhatsApp-Export (TXT/ZIP), auch mit Anhängen">+ Import</button>
+        <button class="btn primary import-trigger" title="Bericht, Export oder Datenbank importieren – der Assistent führt durch">+ Import</button>
       </div>
     </header>
 
@@ -91,6 +91,7 @@
           <button id="trPanelBtn" class="icon-btn caret" title="Einstellungen für die Übersetzung">▾</button>
         </span>
 
+        <button id="spaltenBtn" class="icon-btn" title="Spaltenzuordnung ändern (welche Spalte ist Chat, Absender, Zeit …)" hidden>⇄</button>
         <button id="exportChat" class="icon-btn" title="Diesen Chat als PDF-Bericht ausgeben">⤓</button>
         <button id="detailsToggle" class="icon-btn" title="Details anzeigen">ⓘ</button>
       </div>
@@ -190,17 +191,17 @@
         <span class="w-logo" style="--c:#3A76F0">Signal</span>
         <span class="w-logo" style="--c:#E1306C">Instagram</span>
       </div>
-      <h1>CSV- und WhatsApp-Chats ansehen</h1>
+      <h1>Chats aus Berichten, Exporten und Datenbanken ansehen</h1>
       <p class="w-lead">Alles läuft lokal in deinem Browser – es werden keine Daten hochgeladen.</p>
 
       <div class="w-actions">
-        <button class="btn primary big import-trigger">Chat-Dateien auswählen</button>
-        <button class="btn big" id="mediaBtnWelcome">Medienordner verbinden</button>
+        <button class="btn primary big import-trigger">Importieren …</button>
         <button id="demoBtn" class="btn ghost big">Mit Demodaten ansehen</button>
       </div>
-      <p class="w-hint">CSV, WhatsApp-TXT oder ZIP einfach ins Fenster ziehen.<br>
-        WhatsApp: „Chat exportieren“ mit Medien wählen und das ZIP öffnen – oder Text und Anhänge zusammen auswählen.<br>
-        Bilder, Videos und Sprachnachrichten werden dann direkt im Chat angezeigt und abgespielt.</p>
+      <p class="w-hint">ALEAPP- oder iLEAPP-Bericht, WhatsApp-Datenbank (msgstore.db), WhatsApp-Chatexport (TXT/ZIP)
+        oder CSV – der Assistent prüft vor dem Import, was er gefunden hat.<br>
+        Ordner und Dateien lassen sich auch einfach ins Fenster ziehen.</p>
+      <button class="btn ghost" id="mediaBtnWelcome" hidden>Medienordner verbinden</button>
 
       <button class="w-format-link help-open">Welche Spalten braucht die CSV-Datei?</button>
       <!-- Stand der Sprachpakete für die Übersetzung (bedienung/sprachpakete.js) -->
@@ -257,8 +258,10 @@
     <form method="dialog">
       <h2 id="mapTitel">Spalten zuordnen</h2>
       <p id="mapDatei" class="wa-import-hint"></p>
-      <p class="wa-import-hint">Die Datei hat Spalten, die ChatVisualizer nicht von selbst kennt – etwa aus einem
+      <p id="mapHinweis" class="wa-import-hint">Die Datei hat Spalten, die ChatVisualizer nicht von selbst kennt – etwa aus einem
         SQL-Export. Bitte prüfen, was wohin gehört; vorausgewählt ist, was erkannt wurde. Rechts stehen die ersten Werte.</p>
+      <p id="mapHinweisNeu" class="wa-import-hint" hidden>Vorausgewählt ist die bisherige Zuordnung. Nach dem Ändern
+        werden alle Nachrichten dieser Tabelle neu aufgebaut – Chats können dabei entstehen, zusammenfallen oder wegfallen.</p>
       <div class="map-tabelle">
         <table>
           <thead><tr><th>Feld</th><th>Spalte in der Datei</th><th>Beispielwerte</th></tr></thead>
@@ -292,7 +295,90 @@
       <p id="mapFehler" class="map-fehler" role="alert"></p>
       <footer>
         <button id="mapImport" class="btn primary" value="import">Importieren</button>
-        <button class="btn" value="cancel" formnovalidate>Überspringen</button>
+        <button id="mapAbbrechen" class="btn" value="cancel" formnovalidate>Überspringen</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ------------------------------------------------ Import-Assistent -->
+  <dialog id="importDialog" class="wa-import-dialog import-dialog" aria-labelledby="impTitel">
+    <form method="dialog">
+      <!-- Schritt 1: Was soll importiert werden? -->
+      <section id="impWahl">
+        <h2 id="impTitel">Was möchtest du importieren?</h2>
+        <div class="imp-wege">
+          <div class="imp-weg">
+            <div class="imp-symbol">📑</div>
+            <h3>Bericht oder Export</h3>
+            <p>ALEAPP- oder iLEAPP-Bericht, WhatsApp-Chatexport (TXT oder ZIP mit Medien), CSV/TSV – auch aus
+              SQL-Abfragen auf Geräte-Datenbanken.</p>
+            <p class="imp-tipp">Beim Bericht den ganzen Berichtsordner wählen – dann kommen Medien und Datenbanken mit.</p>
+            <div class="imp-knoepfe">
+              <button type="button" class="btn primary" data-imp="bericht-ordner">Ordner wählen …</button>
+              <button type="button" class="btn" data-imp="bericht-dateien">Dateien wählen …</button>
+            </div>
+          </div>
+          <div class="imp-weg">
+            <div class="imp-symbol">🗄️</div>
+            <h3>Datenbank anbinden</h3>
+            <p>Geräte-Datenbanken direkt lesen, z. B. WhatsApp <code>msgstore.db</code> mit <code>wa.db</code> und
+              Kontaktliste – oder den Fallordner des WhatsAppE2EDecryptors.</p>
+            <p class="imp-tipp">Was nicht direkt geht, erkennt der Assistent und sagt, wie es trotzdem klappt.</p>
+            <div class="imp-knoepfe">
+              <button type="button" class="btn primary" data-imp="db-ordner">Ordner wählen …</button>
+              <button type="button" class="btn" data-imp="db-dateien">Dateien wählen …</button>
+            </div>
+          </div>
+        </div>
+        <details class="imp-katalog">
+          <summary>Welche Datenbanken und Versionen?</summary>
+          <div id="impKatalog"></div>
+        </details>
+        <p class="wa-import-hint">Ordner und Dateien lassen sich auch einfach ins Fenster ziehen.</p>
+      </section>
+
+      <!-- Schritt 2: Prüfung -->
+      <section id="impPruefung" hidden>
+        <h2>Das wurde gefunden</h2>
+        <p id="impQuelle" class="wa-import-hint"></p>
+        <div id="impFunde" class="imp-funde"></div>
+        <p id="impWarten" class="imp-warten" hidden>Wird geprüft …</p>
+      </section>
+
+      <footer>
+        <button type="button" class="btn primary" id="impImport" hidden>Importieren</button>
+        <button type="button" class="btn" id="impZurueck" hidden>Zurück</button>
+        <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
+      </footer>
+    </form>
+  </dialog>
+  <input id="impDateien" type="file" multiple hidden>
+  <input id="impOrdner" type="file" webkitdirectory directory multiple hidden>
+
+  <!-- ------------------------------------------------ Medienquellen -->
+  <dialog id="medienDialog" class="wa-import-dialog medien-dialog" aria-labelledby="medienTitel">
+    <form method="dialog">
+      <h2 id="medienTitel">Medienquellen</h2>
+      <p class="wa-import-hint">Jeder Import sucht seine Bilder, Videos und Sprachnachrichten nur in seinen eigenen
+        Medienordnern. So kann ein Chat nie das gleichnamige Bild eines anderen Geräts zeigen. Wer einen Berichts- oder
+        Fallordner hineinzieht, muss hier nichts tun – der Ordner gehört dann schon zu seinem Import.</p>
+      <p id="medienOffen" class="mq-offen" hidden></p>
+      <div id="medienListe" class="mq-liste"></div>
+      <footer>
+        <button class="btn primary" value="ok">Schließen</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- ------------------------------------------------ Welche Tabelle neu zuordnen? -->
+  <dialog id="tabelleDialog" class="wa-import-dialog" aria-labelledby="tabelleTitel">
+    <form method="dialog">
+      <h2 id="tabelleTitel">Welche Tabelle neu zuordnen?</h2>
+      <p class="wa-import-hint">Dieser Chat stammt aus mehreren importierten Tabellen.</p>
+      <div id="tabelleListe" class="tabelle-liste"></div>
+      <footer>
+        <button class="btn primary" value="weiter">Weiter</button>
+        <button class="btn" value="cancel" formnovalidate>Abbrechen</button>
       </footer>
     </form>
   </dialog>
@@ -524,6 +610,8 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 <script src="js/daten/aleapp-apps.js"></script>
 <script src="js/daten/ileapp.js"></script>
 <script src="js/daten/geraete-db.js"></script>
+<script src="js/daten/whatsapp-db.js"></script>
+<script src="js/daten/datenbanken.js"></script>
 <script src="js/daten/documents.js"></script>
 <script src="js/daten/transcribe.js"></script>
 <script src="js/daten/translate.js"></script>
@@ -547,6 +635,7 @@ wa-004,2026-08-30T18:21:33,Ich,familie,❤️,reaktion,,,wa-003,gesendet,WhatsAp
 <script src="js/bedienung/pdf-bericht.js"></script>
 <script src="js/bedienung/import.js"></script>
 <script src="js/bedienung/medienordner.js"></script>
+<script src="js/bedienung/import-assistent.js"></script>
 <script src="js/bedienung/uebersetzen.js"></script>
 <script src="js/bedienung/sprachpakete.js"></script>
 <script src="js/bedienung/sprachnachrichten.js"></script>

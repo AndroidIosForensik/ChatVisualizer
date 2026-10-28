@@ -46,8 +46,15 @@
     const art = artVon(m);
     const name = esc(Helfer.dateiname(m.media));
     const pfad = esc(m.media);
-    return '<div class="media media-chip" data-media="' + pfad + '" data-kind="' + art + '" data-key="' + esc(m.key) + '">' +
+    return '<div class="media media-chip" data-media="' + pfad + '" data-kind="' + art + '" data-key="' + esc(m.key) + '"' +
+      (m.medienQuelle ? ' data-quelle="' + esc(m.medienQuelle) + '"' : '') + '>' +
       kachelInhalt(art, name, pfad, m) + '</div>';
+  }
+
+  /** Referenz auf das Medium einer Kachel (Pfad + Quelle, siehe Media.ref) */
+  function refVon(el) {
+    const q = el.dataset.quelle;
+    return q ? { media: el.dataset.media || el.dataset.thumb, quelle: q } : (el.dataset.media || el.dataset.thumb);
   }
 
   /* Pfad → ladbare Adresse; liegt in kern/helfer.js, weil auch die
@@ -59,7 +66,8 @@
     const pfad = el.dataset.media;
     el.className = 'media media-chip unresolved';
     el.innerHTML = kachelInhalt(el.dataset.kind, esc(Helfer.dateiname(pfad)), esc(pfad), null) +
-      '<span class="media-error">' + esc(reason || 'Datei nicht gefunden – Medienordner verbinden oder Datei erneut ablegen.') +
+      '<span class="media-error">' + esc(reason || Media.grund(refVon(el)) ||
+        'Datei nicht gefunden – Medienordner verbinden oder Datei erneut ablegen.') +
       (url ? ' <a href="' + esc(url) + '" download="' + esc(Helfer.dateiname(pfad)) + '">Datei speichern</a>' : '') + '</span>';
   }
 
@@ -124,9 +132,10 @@
   }
 
   /** PDF-Kachel: Vorschaubild der ersten Seite, Seitenzahl, Text für die Suche. */
-  async function belebePdf(el, pfad) {
+  async function belebePdf(el, pfad, r) {
+    r = r || pfad;
     const name = esc(Helfer.dateiname(pfad));
-    const bekannt = Documents.get(pfad);
+    const bekannt = Documents.get(r);
 
     const zeichne = (thumb, info) => {
       el.className = 'media media-pdf';
@@ -140,10 +149,10 @@
         '</span>';
     };
 
-    zeichne(Documents.thumb(pfad), bekannt ? seitenText(bekannt) : 'wird gelesen…');
+    zeichne(Documents.thumb(r), bekannt ? seitenText(bekannt) : 'wird gelesen…');
 
     try {
-      const res = await Documents.prepare(pfad);
+      const res = await Documents.prepare(r);
       zeichne(res.thumb, seitenText({ seiten: res.seiten, t: ' '.repeat(res.zeichen), gekuerzt: res.gekuerzt }));
       if (state.query) Chatliste.zeichne();        // Trefferzahlen aktualisieren
     } catch (e) {
@@ -168,7 +177,8 @@
   }
 
   /** Dokumentkachel mit Leseprobe der ersten Zeilen. */
-  async function belebeDok(el, pfad) {
+  async function belebeDok(el, pfad, r) {
+    r = r || pfad;
     const name = esc(Helfer.dateiname(pfad));
     const zeichne = (info, probe) => {
       const art = Documents.format(pfad);
@@ -182,13 +192,13 @@
         '</span>';
     };
 
-    const bekannt = Documents.get(pfad);
+    const bekannt = Documents.get(r);
     zeichne(dokName(pfad) + (bekannt ? ' · durchsuchbar' : ' · wird gelesen…'),
             bekannt ? Textformat.leseprobe(bekannt.t) : '');
     if (bekannt) return;
 
     try {
-      const info = await Documents.extract(pfad);
+      const info = await Documents.extract(r);
       zeichne(dokName(pfad) + (info.t ? ' · durchsuchbar' : '') + (info.gekuerzt ? ' · gekürzt' : ''),
               Textformat.leseprobe(info.t));
       if (state.query) Chatliste.zeichne();
@@ -205,21 +215,22 @@
     if (el.dataset.hydrated) return;
     el.dataset.hydrated = '1';
     const pfad = el.dataset.media;
+    const r = refVon(el);
     const art = el.dataset.kind;
     const name = esc(Helfer.dateiname(pfad));
 
     // Dokumente im Internet werden nicht gelesen, nur verlinkt
-    const extern = Media.istExtern(pfad);
-    if (!extern && art === 'pdf' && window.Documents) { await belebePdf(el, pfad); return; }
-    if (!extern && art === 'doc' && window.Documents) { await belebeDok(el, pfad); return; }
+    const extern = Media.istExtern(r);
+    if (!extern && art === 'pdf' && window.Documents) { await belebePdf(el, pfad, r); return; }
+    if (!extern && art === 'doc' && window.Documents) { await belebeDok(el, pfad, r); return; }
     const sichtbar = art === 'bild' || art === 'animation' || art === 'video' || art === 'audio';
 
     // Bilder/Videos/Töne aus dem Internet erst nach Freigabe laden
     if (extern && sichtbar && !Media.externErlaubt(pfad)) { externFrage(el, pfad); return; }
 
     // Erst im verbundenen Medienordner suchen, sonst den Pfad direkt versuchen
-    const ausOrdner = !!Media.lookup(pfad);
-    const url = extern && !sichtbar ? pfad : await Media.getDisplayURL(pfad);
+    const ausOrdner = !!Media.lookup(r);
+    const url = extern && !sichtbar ? pfad : await Media.getDisplayURL(r);
     if (!el.isConnected) return;
     if (!url) { zurueckZurKachel(el); return; }
 
@@ -291,7 +302,7 @@
   async function belebeVorschau(el) {
     if (el.dataset.hydrated) return;
     el.dataset.hydrated = '1';
-    const pfad = el.dataset.thumb;
+    const pfad = refVon(el);
     const art = el.dataset.kind;
 
     if (art === 'pdf') {
@@ -308,7 +319,7 @@
     // Erst einsetzen, dann prüfen: bei einem Fehler kommt das Symbol zurück
     const ersatz = el.innerHTML;
     el.innerHTML = art === 'video' ? '<video src="' + esc(url) + '" preload="metadata" muted playsinline></video>'
-      : visualHTML(art, pfad, url, '');
+      : visualHTML(art, el.dataset.thumb, url, '');
     el.firstChild.addEventListener('error', () => { el.innerHTML = ersatz; });
     startAnimation(el);
   }
@@ -320,7 +331,7 @@
 
   global.Medienansicht = {
     TYP_SYMBOL: TYP_SYMBOL, ART_SYMBOL: ART_SYMBOL,
-    artVon: artVon, medienHTML: medienHTML, direkteURL: direkteURL,
+    artVon: artVon, medienHTML: medienHTML, direkteURL: direkteURL, refVon: refVon,
     belebe: belebe, belebeAlle: belebeAlle, belebeVorschauen: belebeVorschauen,
     belebePdf: belebePdf, belebeDok: belebeDok, freigeben: freigeben,
     visualHTML: visualHTML, startAnimation: startAnimation

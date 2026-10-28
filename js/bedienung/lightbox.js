@@ -25,7 +25,7 @@
     return conv.media.filter(m => {
       const art = Medienansicht.artVon(m);
       return (art === 'bild' || art === 'animation' || art === 'video') &&
-             (Media.lookup(m.media) || Medienansicht.direkteURL(m.media));
+             (Media.lookup(Media.ref(m)) || Medienansicht.direkteURL(m.media));
     });
   }
 
@@ -36,7 +36,7 @@
     const version = ++galerieVersion;
 
     const art = Medienansicht.artVon(m);
-    const url = await Media.getDisplayURL(m.media);
+    const url = await Media.getDisplayURL(Media.ref(m));
     if (version !== galerieVersion) return;
     const name = Helfer.dateiname(m.media);
 
@@ -69,7 +69,7 @@
     if (!stand.pdf) return;
     const buehne = $('#lbStage');
     const breite = Math.min(900, Math.round(window.innerWidth * 0.8));
-    const name = Helfer.dateiname(stand.pdf.pfad);
+    const name = Helfer.dateiname(pfadText(stand.pdf.pfad));
 
     try {
       const { canvas, seiten } = await Documents.renderPage(stand.pdf.pfad, stand.pdf.seite, breite);
@@ -85,6 +85,9 @@
         esc(e.message || 'PDF konnte nicht angezeigt werden') + '</span>';
     }
   }
+
+  /* Pfad oder Referenz {media, quelle} → Pfad für die Anzeige */
+  const pfadText = x => (x && typeof x === 'object' ? x.media : x) || '';
 
   /** Ein PDF in der Großansicht öffnen. */
   async function pdfOeffnen(pfad) {
@@ -106,7 +109,7 @@
     oeffneRahmen();
     const buehne = $('#lbStage');
     buehne.innerHTML = '<div class="lb-laden">Wird gelesen…</div>';
-    const name = Helfer.dateiname(pfad);
+    const name = Helfer.dateiname(pfadText(pfad));
 
     try {
       const info = await Documents.extract(pfad);

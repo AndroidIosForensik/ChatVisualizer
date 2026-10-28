@@ -7,7 +7,10 @@
    Zeitstempel und Zeitzone vor dem Import geprüft werden können.
 
    Die Antwort wird je Spaltensatz gemerkt (Store.settings 'spaltenZuordnungen'):
-   Dateien mit denselben Spalten laufen danach ohne Rückfrage durch. */
+   Dateien mit denselben Spalten laufen danach ohne Rückfrage durch.
+
+   Derselbe Dialog dient später zum Ändern (Knopf ⇄ im Chatkopf): Import.neuZuordnen
+   öffnet ihn mit der gespeicherten Tabelle und der bisherigen Wahl. */
 (function (global) {
   'use strict';
 
@@ -145,7 +148,8 @@
 
   /**
    * Zuordnung abfragen.
-   * @param {{datei: string, header: string[], data: object[], map: object, zone: string, messenger: string}} a
+   * @param {{datei: string, header: string[], data: object[], map: object, zone: string, messenger: string,
+   *          festerChat?: string, neu?: boolean}} a  neu = Zuordnung eines schon importierten Chats ändern
    * @returns {Promise<?{map: object, zone: string, festerChat: string, messenger: string}>} null = überspringen
    */
   function fragen(a) {
@@ -167,9 +171,13 @@
     const bekannt = Array.from($('#mapZone').options).some(o => o.value === a.zone);
     $('#mapZone').value = bekannt ? a.zone : 'andere';
     $('#mapZoneFrei').value = bekannt ? '' : a.zone;
-    $('#mapFesterChat').value = '';
+    $('#mapFesterChat').value = a.festerChat || '';
     $('#mapMessenger').value = a.messenger || '';
     $('#mapMerken').checked = true;
+    $('#mapHinweis').hidden = !!a.neu;
+    $('#mapHinweisNeu').hidden = !a.neu;
+    $('#mapImport').textContent = a.neu ? 'Neu zuordnen' : 'Importieren';
+    $('#mapAbbrechen').textContent = a.neu ? 'Abbrechen' : 'Überspringen';
 
     const neu = () => auffrischen(a.header, a.data);
     dialog.oninput = neu;
@@ -184,6 +192,27 @@
         const wahl = leseAuswahl();
         if ($('#mapMerken').checked) merken(a.header, wahl);
         resolve(wahl);
+      }, { once: true });
+      dialog.showModal();
+    });
+  }
+
+  /**
+   * Stammt ein Chat aus mehreren Tabellen: welche soll neu zugeordnet werden?
+   * @param {object[]} saetze  gespeicherte Tabellen (Store.getTabelle)
+   * @returns {Promise<?object>} gewählte Tabelle oder null
+   */
+  function waehleTabelle(saetze) {
+    const dialog = $('#tabelleDialog');
+    $('#tabelleListe').innerHTML = saetze.map((t, i) =>
+      '<label><input type="radio" name="tabelleWahl" value="' + i + '"' + (i ? '' : ' checked') + '> <b>' +
+        esc(t.datei) + '</b> <small>' + t.data.length.toLocaleString('de-DE') + ' Zeilen' +
+        (t.zeit ? ' · importiert ' + esc(new Date(t.zeit).toLocaleString('de-DE')) : '') + '</small></label>').join('');
+    dialog.returnValue = '';
+    return new Promise(resolve => {
+      dialog.addEventListener('close', () => {
+        const gewaehlt = dialog.querySelector('input[name="tabelleWahl"]:checked');
+        resolve(dialog.returnValue === 'weiter' && gewaehlt ? saetze[+gewaehlt.value] : null);
       }, { once: true });
       dialog.showModal();
     });
@@ -207,5 +236,5 @@
     document.addEventListener('click', e => { if (e.target.closest('.help-open')) beschriften(); });
   }
 
-  global.Spaltenzuordnung = { gemerkt, merken, noetig, fragen, vergessen, anzahlGemerkt, signatur, verdrahten };
+  global.Spaltenzuordnung = { gemerkt, merken, noetig, fragen, waehleTabelle, vergessen, anzahlGemerkt, signatur, verdrahten };
 })(window);

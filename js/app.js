@@ -94,10 +94,10 @@
       }
 
       const pdf = e.target.closest('.media-pdf[data-media]');
-      if (pdf) { Lightbox.pdfOeffnen(pdf.dataset.media); return; }
+      if (pdf) { Lightbox.pdfOeffnen(Medienansicht.refVon(pdf)); return; }
 
       const dok = e.target.closest('.media-doc[data-media]');
-      if (dok) { Lightbox.textOeffnen(dok.dataset.media); return; }
+      if (dok) { Lightbox.textOeffnen(Medienansicht.refVon(dok)); return; }
 
       const bild = e.target.closest('.media-img[data-media]');
       if (bild) { Lightbox.oeffnen(bild.dataset.key); return; }
@@ -391,6 +391,7 @@
     Import.verdrahten();
     PdfBericht.verdrahten();
     Medienordner.verdrahten();
+    ImportAssistent.verdrahten();
     Uebersetzen.verdrahten();
     Sprachpakete.verdrahten();
     Sprachnachrichten.verdrahten();

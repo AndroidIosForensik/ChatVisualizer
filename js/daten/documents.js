@@ -40,7 +40,12 @@
   let pending = [];
   let saveTimer = null;
 
-  function key(pfad) { return String(pfad || '').replace(/\\/g, '/').toLowerCase(); }
+  /* Pfad oder Referenz {media, quelle} (Media.ref): gleiche Dateinamen aus
+     verschiedenen Quellen sind verschiedene Dokumente */
+  function key(x) {
+    const quelle = x && typeof x === 'object' && x.quelle ? x.quelle + '|' : '';
+    return quelle + pfadVon(x).replace(/\\/g, '/').toLowerCase();
+  }
 
   function get(pfad) { return cache.get(key(pfad)) || null; }
   function text(pfad) { const e = get(pfad); return e && e.t ? e.t : ''; }
@@ -113,8 +118,8 @@
       const file = await Media.getFile(entry);
       if (file) return new Uint8Array(await file.arrayBuffer());
     }
-    const url = Helfer.direkteURL(pfad);
-    if (!url) throw new Error('Datei nicht gefunden – Medienordner verbinden');
+    const url = Helfer.direkteURL(pfadVon(pfad));
+    if (!url) throw new Error(Media.grund(pfad) || 'Datei nicht gefunden – Medienordner verbinden');
     const r = await fetch(url);
     if (!r.ok) throw new Error('Datei nicht erreichbar (HTTP ' + r.status + ')');
     return new Uint8Array(await r.arrayBuffer());
@@ -349,11 +354,12 @@
     const out = [];
     for (const m of messages) {
       if (!m.media || !isDocument(m.media)) continue;
-      const k = key(m.media);
+      const r = Media.ref(m);
+      const k = key(r);
       if (gesehen.has(k) || cache.has(k)) continue;
-      if (!Media.lookup(m.media) && !Helfer.direkteURL(m.media)) continue;   // Datei nicht greifbar
+      if (!Media.lookup(r) && !Helfer.direkteURL(m.media)) continue;   // Datei nicht greifbar
       gesehen.add(k);
-      out.push(m.media);
+      out.push(r);
     }
     return out;
   }

@@ -89,9 +89,9 @@ demselben Muster ein.
 
 | Aktion | Wie |
 | --- | --- |
-| Importieren | Button **+ Import** oder Dateien ins Fenster ziehen: ALEAPP-Berichtsordner oder -TSV, WhatsApp-TXT/ZIP, CSV und Anhänge, auch mehrere gleichzeitig – siehe [Unterstützte Quellen](#unterstützte-quellen) |
+| Importieren | Button **+ Import** öffnet den [Import-Assistenten](#import-assistent); Ordner und Dateien lassen sich auch direkt ins Fenster ziehen – siehe [Unterstützte Quellen](#unterstützte-quellen) |
 | Format nachschlagen | Button **?** in der Seitenleiste: erklärt jede Spalte mit Bedeutung und Beispiel und speichert auf Wunsch eine Vorlage als CSV |
-| Medienordner | Button **🖼** oder den Ordner ins Fenster ziehen. Bilder, Videos, PDFs und Sprachnachrichten erscheinen danach im Chat |
+| Medienquellen | Button **🖼**: welcher Medienordner zu welchem Import gehört, wie viele Medien gefunden wurden – siehe [Medienquellen](#medienquellen) |
 | Dokumente | PDFs zeigen eine Seitenvorschau, Word/Excel/Text eine Leseprobe, ein Klick öffnet den Inhalt. Alle Dokumente werden im Hintergrund gelesen und sind damit durchsuchbar |
 | Sprachnachrichten | **🎤** in der Chat-Kopfzeile transkribiert alle Sprachnachrichten des Chats, 🎤 an der Sprechblase nur diese eine |
 | Übersetzen | **🌐** in der Chat-Kopfzeile übersetzt den ganzen Chat, 🌐 an der Sprechblase nur diese eine. Das Original bleibt darunter sichtbar |
@@ -112,6 +112,34 @@ Zitierte Nachrichten (`antwort_auf_id`) sind anklickbar und springen zum Origina
 Reaktionen (`reaktion_auf_id`) hängen als Emoji an der Zielnachricht, statt als eigene
 Nachricht zu erscheinen.
 
+## Import-Assistent
+
+**+ Import** führt in drei Schritten durch den Import:
+
+1. **Was?** – zwei Wege: *Bericht oder Export* (ALEAPP-/iLEAPP-Bericht, WhatsApp-Chatexport,
+   CSV/TSV) oder *Datenbank anbinden* (Geräte-Datenbanken, Fallordner des WhatsAppE2EDecryptors).
+   Darunter steht der Katalog aller Datenbanken mit ihren Versionen und ob sie direkt gelesen
+   werden.
+2. **Prüfung** – der Assistent sieht sich den gewählten Ordner bzw. die Dateien an, ohne etwas
+   zu importieren, und zeigt jeden Fund mit Ampel: ✓ wird importiert, ⚠ geht nur auf einem
+   anderen Weg (mit Rat, welchem), 🔒 verschlüsselt (mit Rat, wie entschlüsseln). Bei der
+   WhatsApp-Datenbank stehen dort Zahl der Nachrichten und Chats, der Zeitraum, die LID-Zuordnungen
+   und woher die Namen kommen werden.
+3. **Importieren**.
+
+Dateien, die man auf den offenen Assistenten zieht, werden ebenso erst geprüft. Ins Fenster
+gezogene Dateien und Ordner werden wie bisher sofort importiert.
+
+| Datenbank | Stand |
+|---|---|
+| WhatsApp Android `msgstore.db` (Schema ab 2022) mit `wa.db`, `-wal`, Kontaktliste | direkt |
+| WhatsApp Android vor 2022 (Tabelle `messages`) | über ALEAPP |
+| WhatsApp iPhone `ChatStorage.sqlite` | über iLEAPP oder SQL-Abfrage als CSV |
+| iMessage/SMS iPhone `sms.db`, SMS Android `mmssms.db`, Google Messages `bugle_db` | über iLEAPP/ALEAPP oder SQL-Abfrage als CSV |
+| Telegram Android `cache4.db` | über ALEAPP |
+| Signal `signal.db`, Threema `threema4.db` (SQLCipher) | über ALEAPP einer Vollsicherung |
+| WhatsApp-Backups `*.crypt12/14/15` | erst mit dem WhatsAppE2EDecryptor entschlüsseln |
+
 ## Unterstützte Quellen
 
 Diese Wege führen in den ChatVisualizer; nur bei unbekannten Spalten fragt der Import einmal nach:
@@ -119,6 +147,7 @@ Diese Wege führen in den ChatVisualizer; nur bei unbekannten Spalten fragt der 
 | Quelle | Was man hineinzieht | Was passiert |
 | --- | --- | --- |
 | **ALEAPP-Bericht** | den ganzen Berichtsordner (`ALEAPP_Reports_…` bzw. `ALEAPP_Output_…`) oder die TSV-Dateien aus `_TSV Exports` | Die Tabellen einer App werden erkannt und **zusammengeführt**: Namen, Anhänge, Anrufe, Systemereignisse, Lesebestätigungen, Reaktionen. Alle anderen Tabellen des Berichts (Browser, WLAN, Konten …) werden still übergangen. |
+| **WhatsApp-Datenbank (Android)** | ALEAPP-Berichtsordner, Fallordner des Entschlüsselungs-Tools oder `msgstore.db` (+ `wa.db`, `kontakte.csv`) | wird **direkt gelesen** und ersetzt die WhatsApp-TSVs des Berichts, siehe [WhatsApp-Datenbanken direkt](#whatsapp-datenbanken-direkt) |
 | **WhatsApp-Textexport** | TXT, ZIP mit Medien oder den entpackten Ordner (Android und iPhone) | siehe [WhatsApp-Textexporte mit Medien](#whatsapp-textexporte-mit-medien) |
 | **iLEAPP-Bericht** | Berichtsordner oder TSV-Dateien aus `_TSV Exports` | siehe [iLEAPP-Berichte](#ileapp-berichte) |
 | **SQL-Export aus Geräte-Datenbanken** | CSV mit den rohen Spaltennamen (`ZWAMESSAGE`, `message`, `sms.db` …) | siehe [SQL-Exporte aus Geräte-Datenbanken](#sql-exporte-aus-geräte-datenbanken) |
@@ -182,6 +211,9 @@ zusammengeführt wurden.
 
 ### Grenzen
 
+- Die folgenden Punkte zu WhatsApp betreffen nur den Weg über die TSVs. Liegt `msgstore.db` im
+  Berichtsordner (ALEAPP kopiert sie nach `data/…`), wird sie direkt gelesen, siehe
+  [WhatsApp-Datenbanken direkt](#whatsapp-datenbanken-direkt).
 - Am besten alle TSV-Dateien eines Berichts **zusammen** importieren (Ordner hineinziehen). Wer
   Kontakte oder Lesebestätigungen später allein nachlädt, bekommt sie nicht mehr verknüpft.
 - Ein `…@lid`-Chat, zu dem es weder Nachricht noch Lesebestätigung gibt, erscheint als eigener
@@ -198,6 +230,65 @@ zusammengeführt wurden.
 - Ein WhatsApp-Textexport (TXT/ZIP) desselben Chats wird nicht mit den ALEAPP-Daten
   zusammengelegt, sondern steht als eigener Chat daneben.
 - Reaktionen gibt es nur für WhatsApp; Bearbeitungen werden mit „(bearbeitet)“ markiert.
+
+## WhatsApp-Datenbanken direkt
+
+WhatsApp unter Android speichert alles in `msgstore.db`. Neuere Versionen führen Chats und
+Absender dort unter einer anonymen Kennung (`…@lid`); welche Telefonnummer dahinter steht, sagt
+nur die Tabelle `jid_map`. Die steht in keinem ALEAPP-Bericht – über die TSVs zerfällt ein
+Gespräch deshalb leicht in zwei Chats, und Gruppenereignisse nennen Kennungen statt Personen.
+Darum liest der ChatVisualizer die Datenbank selbst, sobald sie beiliegt:
+
+- **ALEAPP-Berichtsordner** hineinziehen: ALEAPP kopiert `msgstore.db` und `wa.db` nach
+  `data/…/com.whatsapp/databases/`, die Medien liegen daneben unter ihren Originalpfaden.
+- **Fallordner des Entschlüsselungs-Tools** (`WA_ADB_…` bzw. `WA_ALEAPP_…`) hineinziehen –
+  dafür braucht es ALEAPP gar nicht.
+- Oder einzelne Dateien: `msgstore.db`, dazu `wa.db` und `kontakte.csv`, je mit `-wal`, falls
+  vorhanden.
+
+Was dabei herauskommt:
+
+- **Ein Chat je Person:** LID-Kennungen werden ihrer Telefonnummer zugeordnet.
+- **Eigene Nachrichten** werden am Gerät erkannt, von dem sie stammen
+  (`message_details`) – auch in Gruppen, wo WhatsApp die eigene LID einträgt.
+- **Systemmeldungen** mit Personen: „Du hast +49170… und Anna hinzugefügt“,
+  „+49162… hat die Gruppe „Planung“ erstellt“, „… ist der Gruppe über eine Einladung
+  beigetreten“, „Du hast den Kontakt blockiert“.
+- Antworten (Zitate), Reaktionen, Lesestatus je Empfänger, bearbeitete und gelöschte
+  Nachrichten, Anrufe mit Dauer, Standorte, Kontaktkarten, Umfragen, Gruppeneinladungen.
+- **Medien** über ihren Pfad aus der Datenbank (`Media/WhatsApp Images/…`).
+- **Herkunft** je Nachricht im Tooltip der Uhrzeit, z. B. `msgstore.db · message._id 254`.
+- Eine **`-wal`** neben der Datenbank wird eingespielt – nur bestätigte, unbeschädigte Seiten,
+  wie SQLite selbst sie liest. Gelesen wird eine Kopie im Speicher; die Dateien bleiben
+  unverändert.
+
+### Namen
+
+WhatsApp schreibt die Kontaktliste **nicht ins Backup**: Die aus `wa.db.crypt15` entschlüsselte
+`wa.db` hat eine leere Tabelle `wa_contacts`. Namen kommen deshalb, in dieser Rangfolge, aus
+
+1. einer `wa.db` mit Kontakten (aus einer Vollsicherung): erst der Adressbuchname, sonst der
+   Profilname, den sich die Person selbst gegeben hat – mit vorangestellter Tilde (`~ Anna`),
+2. einer **Kontaktliste** – nur, wenn die `wa.db` keine Kontakte hat. Das
+   Entschlüsselungs-Tool liest sie im Reiter „Vom Gerät (adb)“ aus dem Adressbuch des Handys
+   (`geraet/kontakte.csv`). Jede CSV mit Name und Nummer geht ebenso; Nummern ohne
+   Ländervorwahl (`0170 …`) werden über die letzten neun Ziffern zugeordnet, wenn das
+   eindeutig ist,
+3. sonst bleibt die Nummer stehen.
+
+Die Meldung nach dem Import nennt, woher die Namen stammen und wie viele LID-Kennungen
+aufgelöst wurden. Ohne Datenbank, nur mit den TSVs, benennt eine Kontaktliste die Chatpartner
+ebenfalls.
+
+### Grenzen
+
+- Das alte Schema (Tabelle `messages`, WhatsApp vor 2022) wird nicht direkt gelesen; dann
+  greifen wie bisher die TSVs des ALEAPP-Berichts.
+- Die Dateien werden ganz in den Speicher geladen. Bei sehr großen Datenbanken (über 1 GB)
+  kann der Browser an seine Grenze kommen.
+- Ältere Tagesstände (`msgstore-JJJJ-MM-TT.1.db`) werden nicht mitgelesen, nur `msgstore.db`.
+- Den Ausgang eines Anrufs leitet der ChatVisualizer aus der Dauer ab (angenommen, verpasst,
+  nicht angenommen); der Rohwert `call_result` steht in der Herkunft.
 
 ## WhatsApp-Textexporte mit Medien
 
@@ -309,6 +400,19 @@ Beispielwerte. Außerdem lassen sich einstellen:
 Eine **Zeitprobe** zeigt die erste Zeit als Ortszeit und als UTC, bevor importiert wird.
 Die Antwort gilt für alle Dateien mit denselben Spalten. Vergessen lässt sie sich im
 Hilfefenster (**?**).
+
+### Zuordnung nachträglich ändern
+
+Stimmt nach dem Import etwas nicht – falsche Chatspalte, falsche Zeitzone, Absender und
+Empfänger vertauscht –, öffnet der Knopf **⇄** im Kopf des Chats denselben Dialog mit der
+bisherigen Wahl. Nach **Neu zuordnen** werden alle Nachrichten dieser Tabelle neu
+aufgebaut; Chats können dabei entstehen, zusammenfallen oder wegfallen. Die Datei muss
+dafür nicht noch einmal geladen werden: Beim Import wird die Tabelle selbst mitgespeichert.
+Stammt ein Chat aus mehreren Tabellen, wird zuerst gefragt, welche gemeint ist.
+
+Den Knopf gibt es bei CSV-, TSV- und SQL-Exporten, die ab Version 1.2 importiert wurden.
+Für ältere Importe die Datei einmal neu importieren. ALEAPP-Berichte und
+WhatsApp-Textexporte werden ohne Dialog erkannt und haben ihn nicht.
 
 ## CSV-Format
 
@@ -536,9 +640,30 @@ Panel nennt die Zahl der betroffenen Nachrichten.
 
 ## Medienordner
 
-Zusätzlich zu den CSV-Dateien lässt sich der Ordner mit den Anhängen verbinden, über den
-Button **🖼** in der Seitenleiste oder indem der Ordner ins Fenster gezogen wird. Danach
-zeigt der Chat die Dateien an:
+### Medienquellen
+
+Jeder Import ist eine **Medienquelle** und sucht seine Bilder, Videos und Sprachnachrichten nur
+in seinen **eigenen** Medienordnern. WhatsApp benennt Dateien auf jedem Gerät gleich
+(`IMG-20260925-WA0000.jpg`); mit einem gemeinsamen Ordner für alles würde ein Chat bei zwei
+Geräten das Bild des anderen Geräts zeigen.
+
+- **Berichts- oder Fallordner hineinziehen** (oder im Assistenten wählen): Der Ordner ist dann
+  der Medienordner genau dieses Imports – es ist nichts weiter zu tun.
+- **Import ohne Ordner** (CSV, Datenbank allein): Die Meldung nach dem Import und die
+  Seitenleiste bieten „Medienordner verbinden“ an. **🖼** öffnet die Übersicht *Medienquellen*:
+  je Import, wie viele Medien gefunden wurden, die fehlenden Dateien und wo sie bei diesem
+  Messenger üblicherweise liegen, dazu „Medienordner wählen …“ (mehrere Ordner je Import sind
+  möglich, etwa ALEAPP-Bericht und `com.whatsapp`).
+- **Ordner, der nur Medien enthält**, hineinziehen: Der ChatVisualizer fragt, zu welchem Import
+  er gehört; vorgeschlagen ist der Import des offenen Chats.
+- Ohne eigene Ordner (ältere Importe) wird überall gesucht – liegt eine Datei aber in mehreren
+  Medienordnern, zeigt die Kachel „mehrdeutig“ statt zu raten.
+- Die Freigaben werden je Import gemerkt; nach einem Neustart steht „Medienordner wieder
+  verbinden“ in der Seitenleiste.
+
+### Darstellung
+
+Ist der Medienordner verbunden, zeigt der Chat die Dateien an:
 
 - Bilder erscheinen direkt als Vorschau, ein Klick öffnet die Großansicht (`←` `→` blättert durch alle
   Bilder und Videos der Unterhaltung, `Esc` schließt)
@@ -696,9 +821,12 @@ js/bedienung/fortschritt.js      Fortschrittsleiste und Ladebalken
 js/bedienung/hilfe.js            Erklärfenster zum CSV-Format
 js/bedienung/import.js           Import von CSV, WhatsApp-Export und ALEAPP-Bericht, Ablegen per Maus, Export, Demodaten
 js/bedienung/whatsapp-import.js  Chatname und Datumsformat abfragen, WhatsApp-ZIPs lesen
+js/daten/whatsapp-db.js         WhatsApp-Datenbanken direkt lesen (msgstore.db, wa.db, -wal, Kontaktliste)
 js/bedienung/spaltenzuordnung.js Dialog „Spalten zuordnen“ für fremde CSVs
 js/bedienung/pdf-bericht.js      Chat als PDF-Bericht (Druckdialog)
-js/bedienung/medienordner.js     Medienordner verbinden, merken, trennen
+js/bedienung/medienordner.js     Medienquellen: Ordner je Import verbinden, merken, zuordnen, trennen
+js/bedienung/import-assistent.js Import-Assistent: Weg wählen, prüfen, importieren
+js/daten/datenbanken.js          Katalog der Geräte-Datenbanken, Erkennung an den Tabellen
 js/bedienung/uebersetzen.js      Bedienung der Übersetzung (🌐)
 js/bedienung/sprachnachrichten.js Bedienung der Transkription (🎤)
 js/bedienung/dokumente.js        Anhänge im Hintergrund durchsuchbar machen
@@ -709,6 +837,7 @@ modelle/quellen.json     Bauplan für das Spracherkennungsmodell
 modelle/                 das Modell selbst, wird beim ersten Start geladen (242 MB)
 vendor/transformers/     Laufzeit für das Modell (transformers.js und ONNX-WASM, 22 MB)
 vendor/pdfjs/            PDF.js für Vorschau und Textauszug (4 MB)
+vendor/sqljs/            sql.js (SQLite als WebAssembly) für WhatsApp-Datenbanken (0,7 MB)
 hole-modell.py           lädt fehlende Modelldateien nach
 serve.py                 Webserver für macOS/Linux mit den nötigen MIME-Typen
 ChatVisualizer starten.cmd   Startdatei für Windows
@@ -743,6 +872,7 @@ Mitgelieferte Fremdbestandteile behalten ihre eigenen Lizenzen:
 | --- | --- |
 | `vendor/pdfjs/` – PDF.js (Mozilla) | Apache-2.0; Schriften und WASM-Decoder mit eigenen Lizenzdateien im selben Ordner |
 | `vendor/transformers/` – Transformers.js (Hugging Face) mit ONNX Runtime Web (Microsoft) | Apache-2.0 bzw. MIT |
+| `vendor/sqljs/` – sql.js 1.14.2 (SQLite als WebAssembly) | MIT (SQLite selbst: gemeinfrei) |
 | Spracherkennungsmodell in `modelle/` (wird beim ersten Start geladen) | Apache-2.0, siehe `modelle/quellen.json` |
 | Emoji-Kurznamen in `js/daten/emoji-namen.js` – aus gemoji (GitHub) | MIT |
 | Beispielmedien in `beispiel-daten/medien/` | siehe `beispiel-daten/QUELLEN.md` |

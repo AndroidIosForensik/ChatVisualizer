@@ -1,15 +1,76 @@
-/* Medienbibliothek: verbindet einen Ordner mit den Pfaden aus der CSV.
-   Quellen: Ordnerauswahl (input webkitdirectory), Drag & Drop eines Ordners,
-   oder File System Access API (dauerhaft wiederverbindbar). */
+/* Medienbibliothek: verbindet Ordner mit den Pfaden aus den Nachrichten.
+   Wege: Ordnerauswahl (input webkitdirectory), Drag & Drop eines Ordners,
+   File System Access API (dauerhaft wiederverbindbar), Anhänge eines ZIP.
+
+   Medienquellen: Jeder Import ist eine Quelle mit eigenen Medienordnern.
+   WhatsApp benennt Dateien auf jedem Gerät gleich (IMG-20260925-WA0000.jpg) –
+   ein gemeinsamer Index würde bei zwei Geräten das Bild des falschen Geräts
+   zeigen. Deshalb sucht eine Nachricht nur in den Ordnern ihrer Quelle
+   (m.medienQuelle). Hat die Quelle keine eigenen Ordner (ältere Importe,
+   Ordner von Hand verbunden), wird überall gesucht – aber ein Treffer in
+   mehreren Ordnern gilt als mehrdeutig und wird nicht angezeigt.
+
+   Aufrufer übergeben einen Pfad oder eine Referenz {media, quelle} (Media.ref(m)). */
 (function (global) {
   'use strict';
 
   const index = new Map();     // Pfad-Endung (klein) -> [Eintrag]
   const urlCache = new Map();  // Eintragspfad -> Object-URL
   const entries = [];
-  let rootLabel = '';
-  let rootHandle = null;
+  const wurzeln = new Map();   // Quelle -> { id, label, handles: [], n }
+  const ALLGEMEIN = 'allgemein';
+  const REGISTER = 'medienQuellen';
   let version = 0;             // erhöht sich bei jeder Änderung (für Neu-Rendern)
+
+  /* ---- Quellen ----------------------------------------------------------- */
+
+  /** Referenz auf das Medium einer Nachricht: mit Quelle, wenn sie eine hat */
+  function ref(m) {
+    if (!m) return '';
+    return m.medienQuelle ? { media: m.media, quelle: m.medienQuelle } : m.media;
+  }
+
+  function zerlege(x, quelle) {
+    if (x && typeof x === 'object') return { pfad: String(x.media || ''), quelle: x.quelle || '' };
+    return { pfad: String(x || ''), quelle: quelle || '' };
+  }
+
+  function wurzel(id, label) {
+    let w = wurzeln.get(id);
+    if (!w) { w = { id, label: label || '', handles: [], n: 0 }; wurzeln.set(id, w); }
+    else if (label && !w.label) w.label = label;
+    return w;
+  }
+
+  /* Verzeichnis aller Importe (für Anzeige und Wiederverbinden), dauerhaft gemerkt */
+  function quellen() {
+    const r = Store.settings.get(REGISTER, []);
+    return Array.isArray(r) ? r : [];
+  }
+
+  function merkeQuelle(q) {
+    const liste = quellen().filter(x => x.id !== q.id);
+    const alt = quellen().find(x => x.id === q.id) || {};
+    liste.push(Object.assign({}, alt, q));
+    Store.settings.set(REGISTER, liste);
+  }
+
+  function vergissQuelle(id) {
+    Store.settings.set(REGISTER, quellen().filter(x => x.id !== id));
+  }
+
+  /** Neue Quelle für einen Import anlegen. */
+  function neueQuelle(name, art) {
+    const id = 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    merkeQuelle({ id, name: String(name || 'Import'), art: art || 'dateien', zeit: Date.now() });
+    return id;
+  }
+
+  function quelleName(id) {
+    if (!id || id === ALLGEMEIN) return 'Medienordner ohne Zuordnung';
+    const q = quellen().find(x => x.id === id);
+    return q ? q.name : id;
+  }
 
   const EXT_IMG = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'avif', 'svg', 'heic', 'heif'];
   const EXT_VID = ['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v', '3gp', 'mpg', 'mpeg'];
@@ -71,28 +132,8 @@
     if (pending) pending.then(url => { if (url) URL.revokeObjectURL(url); });
   }
 
-  function addEntry(relPath, source) {
-    const norm = normPath(relPath);
-    if (!norm) return;
-    const existing = (index.get(norm) || []).find(e => e.path === norm);
-    if (existing) {
-      releaseURL(norm);
-      existing.file = source.file || null;
-      existing.handle = source.handle || null;
-      existing.size = source.size || 0;
-      existing.originalPath = relPath;
-      return;
-    }
-    const segs = norm.split('/').filter(Boolean);
-    const entry = {
-      path: norm,
-      originalPath: relPath,
-      name: segs[segs.length - 1],
-      file: source.file || null,
-      handle: source.handle || null,
-      size: source.size || 0
-    };
-    entries.push(entry);
+  function indexiere(entry) {
+    const segs = entry.rel.split('/').filter(Boolean);
     for (let i = segs.length - 1; i >= 0; i--) {
       const key = segs.slice(i).join('/');
       let arr = index.get(key);
@@ -101,16 +142,73 @@
     }
   }
 
-  /* Längste passende Pfad-Endung gewinnt: "C:\Export\Media\IMG.jpg" findet "media/img.jpg" */
-  function lookup(path) {
-    const norm = normPath(path);
-    if (!norm || !index.size) return null;
+  function addEntry(relPath, source, quelle) {
+    const norm = normPath(relPath);
+    if (!norm) return;
+    const w = quelle || ALLGEMEIN;
+    const schluessel = w + '|' + norm;          // eindeutig je Quelle
+    const existing = (index.get(norm) || []).find(e => e.path === schluessel);
+    if (existing) {
+      releaseURL(schluessel);
+      existing.file = source.file || null;
+      existing.handle = source.handle || null;
+      existing.size = source.size || 0;
+      existing.originalPath = relPath;
+      return;
+    }
+    const segs = norm.split('/').filter(Boolean);
+    const entry = {
+      path: schluessel,
+      rel: norm,
+      wurzel: w,
+      originalPath: relPath,
+      name: segs[segs.length - 1],
+      file: source.file || null,
+      handle: source.handle || null,
+      size: source.size || 0
+    };
+    entries.push(entry);
+    wurzel(w).n++;
+    indexiere(entry);
+  }
+
+  /**
+   * Datei zu einem Pfad suchen. Längste passende Pfad-Endung gewinnt:
+   * "C:\Export\Media\IMG.jpg" findet "media/img.jpg".
+   * @returns {{entry: ?object, grund: string}} grund: '' | 'nicht-gefunden' | 'nicht-in-quelle' | 'mehrdeutig'
+   */
+  function treffer(x, quelleArg) {
+    const { pfad, quelle } = zerlege(x, quelleArg);
+    const norm = normPath(pfad);
+    if (!norm || !index.size) return { entry: null, grund: 'nicht-gefunden' };
+    const eigene = !!quelle && wurzeln.has(quelle) && wurzeln.get(quelle).n > 0;
     const segs = norm.split('/').filter(Boolean);
     for (let i = 0; i < segs.length; i++) {
       const arr = index.get(segs.slice(i).join('/'));
-      if (arr && arr.length) return arr[0];
+      if (!arr || !arr.length) continue;
+      if (eigene) {
+        const e = arr.find(y => y.wurzel === quelle);
+        if (e) return { entry: e, grund: '' };
+        continue;
+      }
+      // Ohne eigene Ordner: nur eindeutige Treffer
+      if (new Set(arr.map(y => y.wurzel)).size > 1) return { entry: null, grund: 'mehrdeutig' };
+      return { entry: arr[0], grund: '' };
     }
-    return null;
+    return { entry: null, grund: eigene ? 'nicht-in-quelle' : 'nicht-gefunden' };
+  }
+
+  function lookup(x, quelle) { return treffer(x, quelle).entry; }
+
+  /** Warum wurde nichts gefunden? Für die Meldung an der Kachel. */
+  function grund(x, quelle) {
+    const t = treffer(x, quelle);
+    if (t.entry) return '';
+    const { quelle: q } = zerlege(x, quelle);
+    if (t.grund === 'mehrdeutig') return 'Die Datei liegt in mehreren Medienordnern – Medienordner für „' +
+      quelleName(q) + '“ verbinden, damit eindeutig ist, welche gemeint ist.';
+    if (t.grund === 'nicht-in-quelle') return 'Datei nicht im Medienordner von „' + quelleName(q) + '“.';
+    return 'Datei nicht gefunden – Medienordner verbinden oder Datei erneut ablegen.';
   }
 
   async function getFile(entry) {
@@ -119,8 +217,9 @@
     return null;
   }
 
-  async function getURL(path) {
-    const entry = lookup(path);
+  async function getURL(x, quelle) {
+    const entry = lookup(x, quelle);
+    const path = zerlege(x).pfad;
     if (!entry) return null;
     if (urlCache.has(entry.path)) {
       const pending = urlCache.get(entry.path);
@@ -157,14 +256,28 @@
   function setzeExternImmer(ja) { Store.settings.set('externeMedien', !!ja); }
 
   /** Ist der Pfad ein Internet-Link ohne lokale Kopie im Medienordner? */
-  function istExtern(path) { return !!Helfer.externeURL(path) && !lookup(path); }
+  function istExtern(x, quelle) { return !!Helfer.externeURL(zerlege(x).pfad) && !lookup(x, quelle); }
 
-  async function getDisplayURL(path) {
-    if (lookup(path)) return getURL(path);         // lokale Kopie geht immer vor
+  const aufServerCache = new Map();
+  function aufServer(url) {
+    if (typeof location === 'undefined' || !/^https?:$/.test(location.protocol)) return Promise.resolve(true);
+    if (!aufServerCache.has(url)) {
+      aufServerCache.set(url, fetch(url, { method: 'HEAD' }).then(r => r.ok, () => false));
+    }
+    return aufServerCache.get(url);
+  }
+
+  async function getDisplayURL(x, quelle) {
+    if (lookup(x, quelle)) return getURL(x, quelle);   // lokale Kopie geht immer vor
+    const path = zerlege(x).pfad;
     const extern = Helfer.externeURL(path);
     if (extern) return externErlaubt(path) ? extern : null;
     const url = Helfer.direkteURL(path);
-    if (!url || extOf(path) !== 'gif') return url;
+    if (!url) return null;
+    // Relativer Pfad, vom lokalen Server geladen (Beispieldaten, Export neben index.html):
+    // nur, wenn es die Datei dort gibt – sonst zeigt die Kachel „Medienordner verbinden“
+    if (!(await aufServer(url))) return null;
+    if (extOf(path) !== 'gif') return url;
     const key = '@direct:' + url;
     if (!urlCache.has(key)) {
       const pending = (async () => {
@@ -220,49 +333,72 @@
     return new Blob([bytes.subarray(0, start), loop, bytes.subarray(start)], { type: 'image/gif' });
   }
 
-  function clear() {
-    for (const path of urlCache.keys()) releaseURL(path);
-    index.clear();
+  /** Medienordner einer Quelle lösen – ohne Quelle: alle. Die Dateien selbst bleiben unberührt. */
+  function clear(quelle) {
+    const bleiben = quelle ? entries.filter(e => e.wurzel !== quelle) : [];
+    for (const e of entries) if (!quelle || e.wurzel === quelle) releaseURL(e.path);
+    if (!quelle) for (const path of urlCache.keys()) releaseURL(path);
     entries.length = 0;
-    rootLabel = '';
-    rootHandle = null;
+    index.clear();
+    if (quelle) wurzeln.delete(quelle); else wurzeln.clear();
+    for (const e of bleiben) { entries.push(e); indexiere(e); }
     version++;
   }
 
-  /* ---- Quelle 1: <input type="file" webkitdirectory> --------------------- */
-  function attachFileList(fileList) {
+  /** Ordner, die unter einer Quelle verbunden wurden, einer anderen zuschlagen. */
+  function umhaengen(von, nach) {
+    if (!wurzeln.has(von) || von === nach) return 0;
+    const alt = wurzeln.get(von);
+    const ziel = wurzel(nach, alt.label);
     let n = 0;
-    for (const f of Array.from(fileList || [])) {
-      addEntry(f.webkitRelativePath || f.name, { file: f, size: f.size });
+    for (const e of entries) {
+      if (e.wurzel !== von) continue;
+      releaseURL(e.path);
+      e.wurzel = nach;
+      e.path = nach + '|' + e.rel;
+      n++;
+    }
+    ziel.n += n;
+    ziel.handles.push(...alt.handles);
+    wurzeln.delete(von);
+    version++;
+    return n;
+  }
+
+  /* ---- Weg 1: <input type="file" webkitdirectory> ------------------------ */
+  function attachFileList(fileList, quelle) {
+    let n = 0;
+    const liste = Array.from(fileList || []);
+    for (const f of liste) {
+      addEntry(f.webkitRelativePath || f.name, { file: f, size: f.size }, quelle);
       n++;
     }
     if (n) {
-      const first = fileList[0];
-      const rel = first.webkitRelativePath || '';
-      rootLabel = rootLabel || (rel ? rel.split('/')[0] : 'Medien');
+      const rel = liste[0].webkitRelativePath || '';
+      wurzel(quelle || ALLGEMEIN, rel ? rel.split('/')[0] : 'Dateien');
       version++;
     }
     return n;
   }
 
   /* ZIP-Anhänge werden erst beim Anzeigen entpackt, über getFile wie ein Ordner. */
-  function attachSources(sources, label) {
-    for (const source of sources) addEntry(source.path, source);
-    if (sources.length) { rootLabel = label || 'WhatsApp-Export'; version++; }
+  function attachSources(sources, label, quelle) {
+    for (const source of sources) addEntry(source.path, source, quelle);
+    if (sources.length) { wurzel(quelle || ALLGEMEIN, label || 'WhatsApp-Export'); version++; }
     return sources.length;
   }
 
   /* ---- Quelle 2: File System Access API (dauerhaft verknüpfbar) ---------- */
-  async function scanHandle(dirHandle, prefix, depth, budget) {
+  async function scanHandle(dirHandle, prefix, depth, budget, quelle) {
     if (depth > 8) return 0;
     let n = 0;
     for await (const [name, handle] of dirHandle.entries()) {
       if (budget.left <= 0) return n;
       const rel = prefix ? prefix + '/' + name : name;
       if (handle.kind === 'directory') {
-        n += await scanHandle(handle, rel, depth + 1, budget);
+        n += await scanHandle(handle, rel, depth + 1, budget, quelle);
       } else {
-        addEntry(rel, { handle: handle });
+        addEntry(rel, { handle: handle }, quelle);
         budget.left--;
         n++;
       }
@@ -270,11 +406,13 @@
     return n;
   }
 
+  /** @param {{max?: number, quelle?: string}} [opts] */
   async function attachDirectoryHandle(handle, opts) {
-    rootHandle = handle;
-    rootLabel = handle.name || 'Medien';
+    const quelle = (opts && opts.quelle) || ALLGEMEIN;
+    const w = wurzel(quelle, handle.name || 'Medien');
+    if (!w.handles.includes(handle)) w.handles.push(handle);
     const budget = { left: (opts && opts.max) || 50000 };
-    const n = await scanHandle(handle, handle.name || '', 0, budget);
+    const n = await scanHandle(handle, handle.name || '', 0, budget, quelle);
     version++;
     return n;
   }
@@ -284,12 +422,12 @@
     return new Promise(resolve => reader.readEntries(r => resolve(r), () => resolve([])));
   }
 
-  async function scanEntry(entry, prefix, depth, budget) {
+  async function scanEntry(entry, prefix, depth, budget, quelle) {
     if (depth > 8 || budget.left <= 0) return 0;
     const rel = prefix ? prefix + '/' + entry.name : entry.name;
     if (entry.isFile) {
       const file = await new Promise(res => entry.file(res, () => res(null)));
-      if (file) { addEntry(rel, { file: file, size: file.size }); budget.left--; return 1; }
+      if (file) { addEntry(rel, { file: file, size: file.size }, quelle); budget.left--; return 1; }
       return 0;
     }
     if (entry.isDirectory) {
@@ -297,46 +435,58 @@
       let n = 0, batch;
       do {
         batch = await readEntries(reader);
-        for (const child of batch) n += await scanEntry(child, rel, depth + 1, budget);
+        for (const child of batch) n += await scanEntry(child, rel, depth + 1, budget, quelle);
       } while (batch.length);
       return n;
     }
     return 0;
   }
 
-  async function attachDropEntry(entry) {
+  async function attachDropEntry(entry, quelle) {
     const budget = { left: 50000 };
-    rootLabel = rootLabel || entry.name;
-    const n = await scanEntry(entry, '', 0, budget);
+    wurzel(quelle || ALLGEMEIN, entry.name);
+    const n = await scanEntry(entry, '', 0, budget, quelle);
     version++;
     return n;
   }
 
-  function listByExt(exts) {
+  function listByExt(exts, quelle) {
     const set = exts.map(e => e.toLowerCase());
-    return entries.filter(e => set.indexOf(extOf(e.name)) !== -1);
+    return entries.filter(e => set.indexOf(extOf(e.name)) !== -1 && (!quelle || e.wurzel === quelle));
   }
 
+  /** Zahlen für Meldungen und die Übersicht – gesamt und je Quelle */
   function stats(messages) {
-    let withMedia = 0, matched = 0;
+    let withMedia = 0, matched = 0, mehrdeutig = 0;
+    const jeQuelle = new Map();
     for (const m of messages) {
-      if (!m.media) continue;
-      withMedia++;
-      if (lookup(m.media)) matched++;
+      if (!m.media || Helfer.externeURL(m.media)) continue;
+      const q = m.medienQuelle || '';
+      if (!jeQuelle.has(q)) jeQuelle.set(q, { quelle: q, withMedia: 0, matched: 0, mehrdeutig: 0, fehlend: [] });
+      const z = jeQuelle.get(q);
+      withMedia++; z.withMedia++;
+      const t = treffer(ref(m));
+      if (t.entry) { matched++; z.matched++; continue; }
+      if (t.grund === 'mehrdeutig') { mehrdeutig++; z.mehrdeutig++; }
+      if (z.fehlend.length < 200) z.fehlend.push(m.media);
     }
-    return { files: entries.length, withMedia: withMedia, matched: matched };
+    return { files: entries.length, withMedia, matched, mehrdeutig, jeQuelle };
   }
 
   global.Media = {
     kindOf: kindOf, extOf: extOf, mimeType: mimeType, isAnimation: isAnimation, loopingGif: loopingGif,
-    lookup: lookup, getURL: getURL, getDisplayURL: getDisplayURL, getFile: getFile,
+    lookup: lookup, grund: grund, ref: ref, getURL: getURL, getDisplayURL: getDisplayURL, getFile: getFile,
     istExtern: istExtern, externErlaubt: externErlaubt, erlaubeExtern: erlaubeExtern, setzeExternImmer: setzeExternImmer,
     attachFileList: attachFileList, attachSources: attachSources,
     attachDirectoryHandle: attachDirectoryHandle, attachDropEntry: attachDropEntry,
-    clear: clear, stats: stats, listByExt: listByExt,
-    count: () => entries.length,
-    label: () => rootLabel,
-    handle: () => rootHandle,
+    clear: clear, umhaengen: umhaengen, stats: stats, listByExt: listByExt,
+    neueQuelle: neueQuelle, merkeQuelle: merkeQuelle, vergissQuelle: vergissQuelle, quellen: quellen,
+    quelleName: quelleName, ALLGEMEIN: ALLGEMEIN,
+    hatOrdner: id => wurzeln.has(id) && wurzeln.get(id).n > 0,
+    eintraege: quelle => entries.filter(e => e.wurzel === quelle),
+    ordner: () => Array.from(wurzeln.values()).filter(w => w.n > 0).map(w => ({ id: w.id, label: w.label, n: w.n, handles: w.handles.slice() })),
+    count: quelle => quelle ? (wurzeln.has(quelle) ? wurzeln.get(quelle).n : 0) : entries.length,
+    label: () => Array.from(wurzeln.values()).filter(w => w.n > 0).map(w => w.label).join(', '),
     version: () => version,
     supportsPicker: () => typeof global.showDirectoryPicker === 'function'
   };

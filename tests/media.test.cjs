@@ -144,3 +144,50 @@ test('Ungültige GIF-Daten bleiben unverändert', async () => {
   const blob = new Blob(['not-a-gif']);
   assert.equal(await ctx.Media.loopingGif(blob), blob);
 });
+
+/* ---- Medienquellen ---------------------------------------------------------- */
+
+test('Medienquellen: gleichnamige Dateien zweier Geräte bleiben getrennt, ohne Quelle ist der Treffer mehrdeutig', async () => {
+  const { ctx } = setup();
+  const M = ctx.Media;
+  const a = M.neueQuelle('Pixel A', 'ordner'), b = M.neueQuelle('Pixel B', 'ordner');
+  M.attachSources([{ path: 'A/WhatsApp/Media/WhatsApp Images/IMG-20260925-WA0000.jpg', file: new File(['von A'], 'x.jpg') }], 'A', a);
+  M.attachSources([{ path: 'B/WhatsApp/Media/WhatsApp Images/IMG-20260925-WA0000.jpg', file: new File(['von B'], 'x.jpg') }], 'B', b);
+  const pfad = 'Media/WhatsApp Images/IMG-20260925-WA0000.jpg';
+  assert.equal(await (await M.getFile(M.lookup({ media: pfad, quelle: a }))).text(), 'von A');
+  assert.equal(await (await M.getFile(M.lookup({ media: pfad, quelle: b }))).text(), 'von B');
+  assert.equal(M.count(), 2);
+  // Ohne Quelle (älterer Import): nicht raten
+  assert.equal(M.lookup(pfad), null);
+  assert.match(M.grund(pfad), /mehreren Medienordnern/);
+  // Quelle ohne eigene Ordner: ebenso
+  const c = M.neueQuelle('CSV', 'dateien');
+  assert.equal(M.lookup({ media: pfad, quelle: c }), null);
+  // Eigene Ordner, Datei fehlt dort: kein Ausweichen auf fremde Ordner
+  assert.equal(M.lookup({ media: 'Media/WhatsApp Images/IMG-anders.jpg', quelle: a }), null);
+  assert.match(M.grund({ media: 'IMG-anders.jpg', quelle: a }), /Pixel A/);
+  // Zählung je Quelle
+  const z = M.stats([{ media: pfad, medienQuelle: a }, { media: pfad, medienQuelle: b }, { media: pfad }]);
+  assert.equal(z.matched, 2);
+  assert.equal(z.mehrdeutig, 1);
+  assert.equal(z.jeQuelle.get(a).matched, 1);
+  // Media.ref
+  assert.deepEqual(JSON.parse(JSON.stringify(M.ref({ media: pfad, medienQuelle: a }))), { media: pfad, quelle: a });
+  assert.equal(M.ref({ media: pfad }), pfad);
+});
+
+test('Medienquellen: reinen Medienordner einem Import zuordnen, Quelle trennen', async () => {
+  const { ctx } = setup();
+  const M = ctx.Media;
+  const csv = M.neueQuelle('abfrage.csv', 'dateien');
+  const ordner = M.neueQuelle('com.whatsapp', 'ordner');
+  M.attachSources([{ path: 'com.whatsapp/WhatsApp/Media/IMG-1.jpg', file: new File(['bild'], 'IMG-1.jpg') }], 'com.whatsapp', ordner);
+  assert.equal(M.lookup({ media: 'Media/IMG-1.jpg', quelle: csv }), M.lookup('Media/IMG-1.jpg'));   // eindeutig, also gefunden
+  assert.equal(M.umhaengen(ordner, csv), 1);
+  assert.equal(M.hatOrdner(csv), true);
+  assert.equal(M.hatOrdner(ordner), false);
+  assert.ok(M.lookup({ media: 'Media/IMG-1.jpg', quelle: csv }));
+  M.clear(csv);
+  assert.equal(M.count(), 0);
+  assert.equal(M.quelleName(csv), 'abfrage.csv');
+});

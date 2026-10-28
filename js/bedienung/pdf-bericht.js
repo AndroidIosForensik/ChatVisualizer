@@ -96,7 +96,7 @@
     async function arbeiter() {
       while (i < liste.length && !abbruch.ja) {
         const m = liste[i++];
-        const daten = await bildDaten(m.media);
+        const daten = await bildDaten(Media.ref(m));
         if (daten) bilder.set(m.key, daten);
         fertig++;
         Fortschritt.zeige({ icon: '📄', titel: 'PDF: Bilder werden eingebettet', pct: Math.round(fertig / liste.length * 100),
@@ -410,7 +410,7 @@
     const liste = auswahl(conv, opt);
     const bilder = liste.filter(istBild).length;
     const verbunden = liste.some(m => istBild(m) &&
-      (Media.lookup(m.media) || (Media.istExtern(m.media) && Media.externErlaubt(m.media))));
+      (Media.lookup(Media.ref(m)) || (Media.istExtern(Media.ref(m)) && Media.externErlaubt(m.media))));
     $('#pdfInfo').textContent = liste.length.toLocaleString('de-DE') + ' Nachrichten' +
       (bilder ? ', ' + bilder + (bilder === 1 ? ' Bild' : ' Bilder') + (verbunden ? '' : ' (Medienordner nicht verbunden – nur Dateinamen)') : '') +
       ' · Zeiten in ' + M.zonenName() + (liste.length > 3000 ? ' · großer Bericht, das Erstellen dauert etwas' : '');

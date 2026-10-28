@@ -7,7 +7,12 @@
 
    Zusammengeführt wird über den Schlüssel „Messenger::nachricht_id": dieselbe
    Datei zweimal zu importieren erzeugt darum keine Doppelten, sondern
-   aktualisiert die vorhandenen Nachrichten. */
+   aktualisiert die vorhandenen Nachrichten.
+
+   WhatsApp-Datenbanken (msgstore.db, wa.db, je mit -wal) liest whatsapp-db.js
+   direkt. Liegen sie bei – im ALEAPP-Bericht unter data/…, im Fallordner des
+   Entschlüsselungs-Tools unter extraktion/… –, ersetzen sie die WhatsApp-TSVs
+   des Berichts. Eine Kontaktliste (Name + Nummer) benennt die Chatpartner. */
 (function (global) {
   'use strict';
 
@@ -36,8 +41,119 @@
     }
 
     const saetze = [];
-    for (const [convKey, messages] of koerbe) saetze.push({ convKey: convKey, messages: messages });
+    for (const [convKey, messages] of koerbe) {
+      // Leer geworden (Nachrichten umgezogen oder neu zugeordnet): ganz entfernen
+      if (messages.length) saetze.push({ convKey: convKey, messages: messages });
+      else await Store.deleteConv(convKey);
+    }
     await Store.putConversations(saetze);
+  }
+
+  /* ---- Tabellen in Nachrichten umsetzen ------------------------------- */
+
+  let lauf = Date.now();     // fortlaufende Nummer für Zeilen ohne ID
+
+  /**
+   * Zeilen einer Tabelle (eigene CSV oder zusammengeführter Bericht) in Nachrichten umsetzen.
+   * @returns {{messages: object[], uebersprungen: number, warnung: string}}
+   */
+  function tabelleUmsetzen(header, data, ersatzName, map, auswertung, dateiname) {
+    map = map || M.buildMapping(header).map;
+    const messages = [];
+    let uebersprungen = 0, warnung = '';
+    const vorkommen = new Map();
+    // Eine ID-Spalte, deren Werte sich wiederholen, taugt nicht als Schlüssel:
+    // gleiche ID hieße „dieselbe Nachricht" und Zeilen würden sich überschreiben.
+    // Dann wie ohne ID-Spalte eine Kennung aus dem Inhalt bilden.
+    let idTaugt = !!map.id;
+    if (idTaugt) {
+      const ids = new Set();
+      for (const r of data) {
+        const v = String(r[map.id] || '').trim();
+        if (v && ids.has(v)) { idTaugt = false; break; }
+        ids.add(v);
+      }
+      if (!idTaugt) {
+        warnung = '<b>' + esc(dateiname || ersatzName) + '</b>: Die Spalte „' + esc(map.id) +
+          '“ enthält doppelte Werte und wird nicht als Nachrichten-ID verwendet.';
+      }
+    }
+    for (let zeile = 0; zeile < data.length; zeile++) {
+      const m = M.rowToMessage(data[zeile], map, ersatzName, lauf++, auswertung || {});
+      // Völlig leere Zeilen (kein Text, kein Medium, keine Reaktion) überspringen –
+      // gelöschte Nachrichten nicht: dass es sie gab, ist selbst ein Befund
+      if (!m.text && !m.media && !m.reactionTo && m.type === 'text' && !m.deleted) { uebersprungen++; continue; }
+      m.sourceOrder = zeile;   // gleiche Zeitstempel behalten die Reihenfolge der Datei
+      if (!idTaugt || !String(data[zeile][map.id] || '').trim()) {
+        // Ohne ID: stabile ID aus dem Inhalt, damit ein erneuter
+        // Import aktualisiert statt zu verdoppeln.
+        const signatur = WhatsApp.fingerprint(JSON.stringify([m.conv, m.tsRaw, m.sender, m.text, m.media, m.reactionTo]));
+        const n = (vorkommen.get(signatur) || 0) + 1;
+        vorkommen.set(signatur, n);
+        m.id = 'auto-' + signatur + '-' + n;
+        m.key = m.messenger + '::' + m.id;
+      }
+      messages.push(m);
+    }
+    return { messages, uebersprungen, warnung };
+  }
+
+  /** Kennung einer importierten Tabelle: gleiche Datei = gleiche Kennung */
+  function tabellenKennung(dateiname, header, data) {
+    return 'tab-' + WhatsApp.fingerprint(JSON.stringify([dateiname, Spaltenzuordnung.signatur(header),
+      data.length, data[0] || null, data[data.length - 1] || null]));
+  }
+
+  /**
+   * Neue Nachrichten in den Bestand übernehmen: bekannte Schlüssel ersetzen, neue anhängen.
+   * @param {Set<string>} betroffen  wird um die geänderten Unterhaltungen ergänzt
+   */
+  function zusammenfuehren(eingang, betroffen) {
+    const index = new Map();
+    for (let i = 0; i < state.messages.length; i++) index.set(state.messages[i].key, i);
+    let neu = 0, aktualisiert = 0;
+    for (const m of eingang) {
+      const i = index.get(m.key);
+      if (i !== undefined) {
+        // Umgezogene Nachricht: auch die alte Unterhaltung muss neu gespeichert werden
+        if (state.messages[i].convKey !== m.convKey) betroffen.add(state.messages[i].convKey);
+        // Erneuter Import ohne Medien (nur die Tabelle): die Medien der alten Quelle behalten
+        const alt = state.messages[i].medienQuelle;
+        if (alt && alt !== m.medienQuelle && Media.hatOrdner(alt) && !Media.hatOrdner(m.medienQuelle)) m.medienQuelle = alt;
+        state.messages[i] = m;
+        aktualisiert++;
+      } else {
+        index.set(m.key, state.messages.length);
+        state.messages.push(m);
+        neu++;
+      }
+      betroffen.add(m.convKey);
+    }
+    return { neu, aktualisiert };
+  }
+
+  /** Medienquellen ohne Nachrichten (durch einen neueren Import ersetzt) lösen und vergessen. */
+  function quellenAufraeumen(ausser) {
+    const benutzt = new Set(state.messages.map(m => m.medienQuelle).filter(Boolean));
+    for (const o of Media.ordner()) {
+      if (o.id === ausser || o.id === Media.ALLGEMEIN || benutzt.has(o.id)) continue;
+      Media.clear(o.id);
+    }
+    for (const q of Media.quellen()) {
+      if (q.id === ausser || benutzt.has(q.id)) continue;
+      Media.vergissQuelle(q.id);
+      if (Store.deleteHandle) Store.deleteHandle('medien:' + q.id);
+    }
+  }
+
+  /** Nach dem Zusammenführen: Chats neu aufbauen, speichern, zeichnen. */
+  async function abschliessen(betroffen) {
+    M.rebuild();
+    M.meFromColumn();
+    M.guessMe();
+    for (const c of state.conversations) c.title = M.conversationTitle(c);
+    await speichere(betroffen);
+    Render.renderAll();
   }
 
   /* ---- CSV einlesen --------------------------------------------------- */
@@ -68,16 +184,23 @@
   }
 
   async function importiere(files, options) {
+    const pfadVon = f => (options.paths && options.paths.get(f)) || f.webkitRelativePath || f.name;
+    // WhatsApp-Datenbanken: nur msgstore.db und wa.db (mit -wal), andere .db bleiben liegen
+    const waDateien = WhatsAppDB.findeDateien(Array.from(files).filter(f =>
+      /^(msgstore|wa)\.db(-wal)?$/i.test(f.name)), pfadVon);
     const liste = Array.from(files).filter(f =>
       /\.(csv|txt|tsv|zip)$/i.test(f.name) || (f.type || '').indexOf('csv') !== -1);
-    if (!liste.length) {
+    if (!liste.length && !waDateien) {
       if (files.length) await Medienordner.dateienAnhaengen(files, false);
       else Meldung.zeige('Keine Importdateien gefunden.', 'error');
       return;
     }
 
     $('#importBusy').classList.add('show');
-    let neu = 0, aktualisiert = 0, uebersprungen = 0, lauf = Date.now();
+    // Jeder Import ist eine Medienquelle: seine Nachrichten suchen Medien nur in seinen Ordnern
+    const quelle = options.quelle || Media.neueQuelle(
+      (waDateien ? waDateien.msgstore : liste[0]).name + (files.length > 1 ? ' + ' + (files.length - 1) + ' weitere' : ''), 'dateien');
+    let uebersprungen = 0;
     const probleme = [];
     const erkannt = new Set();           // Namen der erkannten Berichte/Tabellen
     const eingang = [];
@@ -85,6 +208,8 @@
     const bericht = [];      // erkannte ALEAPP-Tabellen
     const tabellen = [];     // übrige CSV/TSV, nach dem Bericht verarbeitet
     const chatDateien = new Set();
+    const kontakte = [];     // aus Kontaktlisten (kontakte.csv)
+    const kontaktDateien = [];
     let medienGeaendert = false;
 
     for (const datei of liste) {
@@ -110,13 +235,20 @@
             directory: slash >= 0 ? kandidat.path.slice(0, slash) : '' });
           for (const m of messages) eingang.push(m);
           if (kandidat.archive && !kandidat.archive.attached) {
-            Media.attachSources(kandidat.archive.sources, kandidat.archive.label);
+            Media.attachSources(kandidat.archive.sources, kandidat.archive.label, quelle);
             kandidat.archive.attached = true;
             medienGeaendert = true;
           }
           continue;
         }
         const { header, data } = CSV.toObjects(text);
+        if (WhatsAppDB.istKontaktliste(header)) {
+          // Name + Nummer: benennt Chatpartner, ist selbst kein Chat
+          kontakte.push(...WhatsAppDB.kontakteAus(header, data));
+          kontaktDateien.push(datei.name);
+          chatDateien.add(datei);
+          continue;
+        }
         const aleappTabelle = Aleapp.erkenne(header);
         if (aleappTabelle) {
           // Teil eines ALEAPP-Berichts: erst sammeln, dann je App gemeinsam auswerten
@@ -130,42 +262,57 @@
       }
     }
 
-    /* Zeilen einer Tabelle (eigene CSV oder zusammengeführter Bericht) übernehmen */
-    function zeilenUebernehmen(header, data, ersatzName, map, auswertung, dateiname) {
-      map = map || M.buildMapping(header).map;
-      const vorkommen = new Map();
-      // Eine ID-Spalte, deren Werte sich wiederholen, taugt nicht als Schlüssel:
-      // gleiche ID hieße „dieselbe Nachricht" und Zeilen würden sich überschreiben.
-      // Dann wie ohne ID-Spalte eine Kennung aus dem Inhalt bilden.
-      let idTaugt = !!map.id;
-      if (idTaugt) {
-        const ids = new Set();
-        for (const r of data) {
-          const v = String(r[map.id] || '').trim();
-          if (v && ids.has(v)) { idTaugt = false; break; }
-          ids.add(v);
-        }
-        if (!idTaugt) {
-          probleme.push('<b>' + esc(dateiname || ersatzName) + '</b>: Die Spalte „' + esc(map.id) +
-            '“ enthält doppelte Werte und wird nicht als Nachrichten-ID verwendet.');
-        }
-      }
-      for (let zeile = 0; zeile < data.length; zeile++) {
-        const m = M.rowToMessage(data[zeile], map, ersatzName, lauf++, auswertung || {});
-        // Völlig leere Zeilen (kein Text, kein Medium, keine Reaktion) überspringen –
-        // gelöschte Nachrichten nicht: dass es sie gab, ist selbst ein Befund
-        if (!m.text && !m.media && !m.reactionTo && m.type === 'text' && !m.deleted) { uebersprungen++; continue; }
-        m.sourceOrder = zeile;   // gleiche Zeitstempel behalten die Reihenfolge der Datei
-        if (!idTaugt || !String(data[zeile][map.id] || '').trim()) {
-          // Ohne ID: stabile ID aus dem Inhalt, damit ein erneuter
-          // Import aktualisiert statt zu verdoppeln.
-          const signatur = WhatsApp.fingerprint(JSON.stringify([m.conv, m.tsRaw, m.sender, m.text, m.media, m.reactionTo]));
-          const n = (vorkommen.get(signatur) || 0) + 1;
-          vorkommen.set(signatur, n);
-          m.id = 'auto-' + signatur + '-' + n;
-          m.key = m.messenger + '::' + m.id;
-        }
+    /* Zeilen einer Tabelle übernehmen; mit Kennung wird die Rohtabelle für
+       „Spalten neu zuordnen" gemerkt */
+    function zeilenUebernehmen(header, data, ersatzName, map, auswertung, dateiname, tabelle) {
+      const r = tabelleUmsetzen(header, data, ersatzName, map, auswertung, dateiname);
+      uebersprungen += r.uebersprungen;
+      if (r.warnung) probleme.push(r.warnung);
+      for (const m of r.messages) {
+        if (tabelle) m.tabelle = tabelle;
         eingang.push(m);
+      }
+    }
+
+    // WhatsApp-Datenbank direkt – dann ohne die WhatsApp-TSVs des Berichts
+    let waBericht = null;
+    if (waDateien) {
+      try {
+        const lese = f => f ? f.arrayBuffer() : null;
+        const [msgstore, msgstoreWal, wa, waWal] = await Promise.all([waDateien.msgstore, waDateien.msgstoreWal,
+          waDateien.wa, waDateien.waWal].map(lese));
+        const r = await WhatsAppDB.lies({ msgstore, msgstoreWal, wa, waWal, kontakte,
+          kontaktQuelle: kontaktDateien.join(', ') });
+        const vorher = eingang.length;
+        zeilenUebernehmen(Aleapp.SPALTEN, r.data, 'WhatsApp', null, { zone: 'UTC' });
+        waBericht = Object.assign(r.info, { pfad: waDateien.pfad, weitere: waDateien.weitere,
+          eintraege: eingang.length - vorher, wa: !!waDateien.wa,
+          tsvUebergangen: bericht.filter(b => b.app === 'WhatsApp').length });
+        for (let i = bericht.length - 1; i >= 0; i--) if (bericht[i].app === 'WhatsApp') bericht.splice(i, 1);
+      } catch (e) {
+        probleme.push('<b>' + esc(waDateien.msgstore.name) + '</b>: ' + esc(e.message || e) +
+          (bericht.some(b => b.app === 'WhatsApp') ? ' – es werden die WhatsApp-Tabellen des ALEAPP-Berichts verwendet.' : ''));
+      }
+    }
+    // Ohne Datenbank: die Kontaktliste dem WhatsApp-Teil des Berichts mitgeben –
+    // aber nur, wenn der Bericht selbst keine Kontakte mit Namen hat
+    if (!waBericht && kontakte.length && bericht.some(b => b.app === 'WhatsApp')) {
+      const rolle = Aleapp.erkenne(['jid', 'number', 'name']);
+      const hatNamen = bericht.some(b => b.app === 'WhatsApp' && b.rolle === 'kontakte' &&
+        b.data.some(r => r.name && !Aleapp.istKennung(r.name)));
+      if (rolle && !hatNamen) {
+        const buch = WhatsAppDB.nummernbuch(kontakte);
+        const jids = new Set();
+        for (const b of bericht) {
+          if (b.app !== 'WhatsApp') continue;
+          for (const r of b.data) for (const v of Object.values(r)) {
+            const m = /^(\d{6,})@s\.whatsapp\.net$/.exec(String(v).trim());
+            if (m) jids.add(m[1]);
+          }
+        }
+        const zeilen = Array.from(jids).map(n => ({ jid: n + '@s.whatsapp.net', number: n, name: buch(n) }))
+          .filter(z => z.name);
+        if (zeilen.length) bericht.push(Object.assign({ name: kontaktDateien.join(', '), data: zeilen }, rolle));
       }
     }
 
@@ -242,43 +389,29 @@
         probleme.push('<b>' + esc(datei.name) + '</b>: empfohlene Spalten fehlen (' +
           esc(missing.map(spaltenName).join(', ')) + ')');
       }
-      zeilenUebernehmen(header, data, ersatzName, map, auswertung, datei.name);
+      const tabelle = tabellenKennung(t.pfad || datei.name, header, data);
+      zeilenUebernehmen(header, data, ersatzName, map, auswertung, datei.name, tabelle);
+      await Store.putTabelle({ id: tabelle, datei: t.pfad || datei.name, header, data, ersatzName, quelle,
+        wahl: { map, zone: auswertung.zone, festerChat: auswertung.festerChat, messenger: ersatzName },
+        zeit: Date.now() });
     }
 
-    const anhaenge = files.filter(f => !chatDateien.has(f) && !/\.(csv|tsv|zip)$/i.test(f.name));
+    // Anhänge: alles außer Tabellen, Datenbanken und verschlüsselten Backups
+    const anhaenge = files.filter(f => !chatDateien.has(f) &&
+      !/\.(csv|tsv|zip|db|db-wal|db-shm|db-journal|sqlite|sqlite3|crypt\d+)$/i.test(f.name));
     if (!options.fromFolder && anhaenge.length && eingang.length) {
-      Media.attachFileList(anhaenge);
+      Media.attachFileList(anhaenge, quelle);
       medienGeaendert = true;
     }
 
-    /* Zusammenführen: bekannte Schlüssel ersetzen, neue anhängen */
-    const index = new Map();
-    for (let i = 0; i < state.messages.length; i++) index.set(state.messages[i].key, i);
+    for (const m of eingang) m.medienQuelle = quelle;
     const betroffen = new Set();
-
-    for (const m of eingang) {
-      const i = index.get(m.key);
-      if (i !== undefined) {
-        // Umgezogene Nachricht: auch die alte Unterhaltung muss neu gespeichert werden
-        if (state.messages[i].convKey !== m.convKey) betroffen.add(state.messages[i].convKey);
-        state.messages[i] = m;
-        aktualisiert++;
-      } else {
-        index.set(m.key, state.messages.length);
-        state.messages.push(m);
-        neu++;
-      }
-      betroffen.add(m.convKey);
-    }
-
-    M.rebuild();
-    M.meFromColumn();
-    M.guessMe();
-    for (const c of state.conversations) c.title = M.conversationTitle(c);
-    await speichere(betroffen);
-
-    Render.renderAll();
+    const { neu, aktualisiert } = zusammenfuehren(eingang, betroffen);
+    await abschliessen(betroffen);
+    if (eingang.length) quellenAufraeumen(quelle);
+    else if (!Media.hatOrdner(quelle)) Media.vergissQuelle(quelle);
     if (medienGeaendert) Medienordner.ansichtenAuffrischen();
+    else if (Medienordner.zeigeStatus) Medienordner.zeigeStatus();
     $('#importBusy').classList.remove('show');
 
     let text = '<b>' + neu + '</b> neue Nachrichten importiert';
@@ -292,12 +425,104 @@
         (!b.nachrichten && !b.abgeglichen ? ', keine Nachrichten enthalten' : '') + ')').join(', ') +
         (uebergangen ? ' · ' + uebergangen + ' weitere Tabellen ohne Chats übergangen' : '') + '</span>';
     }
+    if (waBericht) text += '<br><span class="toast-note">' + waMeldung(waBericht) + '</span>';
+    else if (kontakte.length) text += '<br><span class="toast-note">Kontaktliste ' + esc(kontaktDateien.join(', ')) +
+      ': ' + kontakte.length + ' Einträge</span>';
     if (erkannt.size) text += '<br><span class="toast-note">Erkannt: ' + esc(Array.from(erkannt).join(', ')) + '</span>';
+    const medienZahl = Media.stats(state.messages).jeQuelle.get(quelle);
+    if (medienZahl && medienZahl.withMedia) {
+      text += '<br><span class="toast-note">Medien: ' + (Media.hatOrdner(quelle)
+        ? medienZahl.matched + ' von ' + medienZahl.withMedia + ' gefunden'
+        : medienZahl.withMedia + (medienZahl.withMedia === 1 ? ' Nachricht' : ' Nachrichten') +
+          ' mit Medien – <button class="toast-link" data-media-panel>Medienordner verbinden</button>') + '</span>';
+    }
     if (probleme.length) text += '<br><span class="toast-note">' + probleme.slice(0, 4).join('<br>') + '</span>';
     Meldung.zeige(text, probleme.length ? 'warn' : 'ok');
 
     if (!state.activeConv && state.conversations.length) App.oeffneChat(state.conversations[0].key);
     Dokumentenlauf.alleLesen();          // neue Anhänge gleich durchsuchbar machen
+  }
+
+  /** Kurzbericht zum Lesen der WhatsApp-Datenbank für die Meldung nach dem Import */
+  function waMeldung(w) {
+    const mehr = (n, eins, viele) => n + ' ' + (n === 1 ? eins : viele);
+    const teile = ['<b>WhatsApp-Datenbank</b> gelesen (' + esc(w.pfad) + '): ' + mehr(w.nachrichten, 'Nachricht', 'Nachrichten') +
+      ' in ' + mehr(w.chats, 'Chat', 'Chats') + (w.reaktionen ? ', ' + mehr(w.reaktionen, 'Reaktion', 'Reaktionen') : '') +
+      (w.anrufe ? ', ' + mehr(w.anrufe, 'Anruf', 'Anrufe') : '')];
+    if (w.lidZuordnungen) teile.push(mehr(w.lidZuordnungen, 'LID-Kennung ihrer', 'LID-Kennungen ihrer') + ' Telefonnummer zugeordnet');
+    if (w.walMsgstore || w.walWa) teile.push((w.walMsgstore + w.walWa) + ' Seiten aus -wal eingespielt');
+    if (w.waKontakte) teile.push('Namen aus wa.db (' + w.waKontakte + ' Kontakte)' +
+      (w.listeUebergangen ? ', Kontaktliste nicht verwendet' : ''));
+    else if (w.listeVerwendet) teile.push(w.benannt + ' Chatpartner über ' + esc(w.kontaktQuelle || 'die Kontaktliste') + ' benannt');
+    else teile.push(w.wa ? 'wa.db ohne Kontakte – Namen fehlen (Kontaktliste mit importieren)' : 'ohne wa.db – keine Namen');
+    if (w.tsvUebergangen) teile.push(w.tsvUebergangen + ' WhatsApp-Tabellen des ALEAPP-Berichts dadurch ersetzt');
+    if (w.weitere) teile.push('weitere msgstore.db im Ordner nicht verwendet');
+    return teile.join(' · ');
+  }
+
+  /* ---- Spalten neu zuordnen ------------------------------------------- */
+
+  /** Kennungen der gespeicherten Tabellen, aus denen ein Chat stammt */
+  function tabellenVon(convKey) {
+    const ids = new Set();
+    for (const m of state.messages) if (m.convKey === convKey && m.tabelle) ids.add(m.tabelle);
+    return Array.from(ids);
+  }
+
+  /**
+   * Zuordnung einer schon importierten Tabelle ändern: Dialog mit der bisherigen
+   * Wahl öffnen, dann alle Nachrichten dieser Tabelle neu aufbauen. Chats können
+   * dabei entstehen, umziehen oder wegfallen.
+   * @param {string} convKey  Chat, von dem aus der Dialog geöffnet wurde
+   */
+  async function neuZuordnen(convKey) {
+    const ids = tabellenVon(convKey);
+    const saetze = (await Promise.all(ids.map(id => Store.getTabelle(id)))).filter(Boolean);
+    if (!saetze.length) {
+      Meldung.zeige('Zu diesem Chat ist keine Tabelle gespeichert – er stammt aus einem älteren Import, ' +
+        'einem ALEAPP-Bericht oder einem WhatsApp-Export. Für eine neue Zuordnung die Datei bitte noch einmal importieren.', 'warn');
+      return false;
+    }
+    const satz = saetze.length > 1 ? await Spaltenzuordnung.waehleTabelle(saetze) : saetze[0];
+    if (!satz) return false;
+
+    const alt = satz.wahl || {};
+    const wahl = await Spaltenzuordnung.fragen({ datei: satz.datei, header: satz.header, data: satz.data,
+      map: alt.map || M.buildMapping(satz.header).map, zone: alt.zone || '', festerChat: alt.festerChat || '',
+      messenger: alt.messenger || satz.ersatzName, neu: true });
+    if (!wahl) return false;
+
+    const { map, missingRequired } = M.pruefeMapping(wahl.map, wahl.festerChat);
+    if (missingRequired.length) { Meldung.zeige('Ohne Chat-Kennung oder Chatnamen lässt sich nichts zuordnen.', 'error'); return false; }
+    const ersatzName = wahl.messenger || satz.ersatzName;
+    const r = tabelleUmsetzen(satz.header, satz.data, ersatzName, map,
+      { zone: wahl.zone, festerChat: wahl.festerChat }, satz.datei);
+    for (const m of r.messages) { m.tabelle = satz.id; if (satz.quelle) m.medienQuelle = satz.quelle; }
+
+    // Alles aus dieser Tabelle herausnehmen, dann neu einsetzen
+    const betroffen = new Set();
+    state.messages = state.messages.filter(m => {
+      if (m.tabelle !== satz.id) return true;
+      betroffen.add(m.convKey);
+      return false;
+    });
+    zusammenfuehren(r.messages, betroffen);
+    satz.wahl = { map, zone: wahl.zone, festerChat: wahl.festerChat, messenger: wahl.messenger };
+    satz.ersatzName = ersatzName;
+    await Store.putTabelle(satz);
+    await abschliessen(betroffen);
+
+    const chats = new Set(r.messages.map(m => m.convKey));
+    if (!state.conversations.some(c => c.key === state.activeConv)) {
+      const ziel = state.conversations.find(c => chats.has(c.key));
+      if (ziel) App.oeffneChat(ziel.key);
+    } else if (state.activeConv) App.oeffneChat(state.activeConv);
+    let text = '<b>' + esc(satz.datei) + '</b> neu zugeordnet: ' + r.messages.length + ' Nachrichten in ' +
+      chats.size + (chats.size === 1 ? ' Chat' : ' Chats');
+    if (r.uebersprungen) text += ', ' + r.uebersprungen + ' leere Zeilen übersprungen';
+    if (r.warnung) text += '<br><span class="toast-note">' + r.warnung + '</span>';
+    Meldung.zeige(text, r.warnung ? 'warn' : 'ok');
+    return true;
   }
 
   /* ---- Ablegen per Maus ---------------------------------------------- */
@@ -328,17 +553,20 @@
 
     const aufgeloest = await Promise.all(offen.map(p => p.catch(() => null)));
     const dateien = einfach.slice();
-    let medien = 0, letzterHandle = null, ordner = 0;
+    let medien = 0, ordner = 0, quelle = null;
+    // Was zusammen hineingezogen wird, ist ein Import – eine Medienquelle
+    const ordnerName = h => h.name || 'Ordner';
+    const neu = name => quelle || (quelle = Media.neueQuelle(name, 'ordner'));
 
     for (const h of aufgeloest) {
       if (!h) continue;
       if (h.kind === 'directory') {                 // moderner Weg (File System Access API)
         $('#importBusy').classList.add('show');
-        medien += await Media.attachDirectoryHandle(h);
-        letzterHandle = h; ordner++;
+        medien += await Media.attachDirectoryHandle(h, { quelle: neu(ordnerName(h)) });
+        ordner++;
       } else if (h.isDirectory) {                   // älterer Weg (webkitGetAsEntry)
         $('#importBusy').classList.add('show');
-        medien += await Media.attachDropEntry(h);
+        medien += await Media.attachDropEntry(h, neu(ordnerName(h)));
         ordner++;
       } else if (h.kind === 'file') {
         try { dateien.push(await h.getFile()); } catch (e) { /* nicht lesbar */ }
@@ -349,10 +577,10 @@
     }
 
     if (ordner) {
-      if (letzterHandle) await Store.saveHandle('mediaRoot', letzterHandle);
-      await Medienordner.nachAnbindung(medien, true);
+      await Medienordner.handlesSpeichern(quelle);
+      await Medienordner.nachAnbindung(medien, true, quelle);
     }
-    if (dateien.length) await importiereDateien(dateien);
+    if (dateien.length) await importiereDateien(dateien, quelle ? { quelle } : {});
   }
 
   /* ---- Export --------------------------------------------------------- */
@@ -437,7 +665,6 @@
       importiereDateien(e.target.files);
       e.target.value = '';          // damit dieselbe Datei erneut gewählt werden kann
     });
-    $$('.import-trigger').forEach(b => b.addEventListener('click', () => $('#fileInput').click()));
     $('#demoBtn').addEventListener('click', demodaten);
 
     // Ablegen per Maus: dragenter/-leave zählen, weil auch Kindelemente feuern
@@ -454,6 +681,12 @@
       if (!e.dataTransfer) return;
       e.preventDefault(); tiefe = 0; $('#dropzone').classList.remove('show');
       verarbeiteAblage(e.dataTransfer);
+    });
+
+    // Spaltenzuordnung des offenen Chats ändern
+    $('#spaltenBtn').addEventListener('click', () => {
+      if (state.activeConv) importQueue = importQueue.then(() => neuZuordnen(state.activeConv))
+        .catch(e => Meldung.zeige('Neu zuordnen fehlgeschlagen: ' + esc(e.message || e), 'error'));
     });
 
     // Export aller Daten (der einzelne Chat: PdfBericht)
@@ -473,7 +706,8 @@
   }
 
   global.Import = {
-    importiereDateien: importiereDateien, speichere: speichere,
+    importiereDateien: importiereDateien, speichere: speichere, quellenAufraeumen: quellenAufraeumen,
+    neuZuordnen: neuZuordnen, tabellenVon: tabellenVon,
     verarbeiteAblage: verarbeiteAblage, demodaten: demodaten,
     exportiereAllesJSON: exportiereAllesJSON,
     verdrahten: verdrahten

@@ -87,9 +87,9 @@ Another model can be added there following the same pattern.
 
 | Action | How |
 | --- | --- |
-| Import | Button **+ Import** or drag files into the window: ALEAPP report folder or TSV, WhatsApp TXT/ZIP, CSV and attachments, several at once – see [Supported sources](#supported-sources) |
+| Import | Button **+ Import** opens the [import assistant](#import-assistant); folders and files can also be dragged straight into the window – see [Supported sources](#supported-sources) |
 | Look up the format | Button **?** in the sidebar: explains every column with meaning and example, and saves a CSV template on request |
-| Media folder | Button **🖼** or drag the folder into the window. Images, videos, PDFs and voice messages then appear in the chat |
+| Media sources | Button **🖼**: which media folder belongs to which import and how many media were found – see [Media sources](#media-sources) |
 | Documents | PDFs show a page preview, Word/Excel/text a short excerpt; a click opens the content. All documents are read in the background and become searchable |
 | Voice messages | **🎤** in the chat header transcribes all voice messages of the chat, 🎤 on a bubble only that one |
 | Translate | **🌐** in the chat header translates the whole chat, 🌐 on a bubble only that one. The original stays visible below |
@@ -110,6 +110,24 @@ Quoted messages (`antwort_auf_id`) are clickable and jump to the original. React
 (`reaktion_auf_id`) are attached as an emoji to the target message instead of appearing
 as a message of their own.
 
+## Import assistant
+
+**+ Import** guides through the import in three steps: (1) *what* – either *report or export*
+(ALEAPP/iLEAPP report, WhatsApp chat export, CSV/TSV) or *connect a database* (device databases,
+case folder of the WhatsAppE2EDecryptor), with a catalogue of all databases, their versions and
+whether they are read directly; (2) *check* – the assistant looks at the chosen folder or files
+without importing anything and shows every finding with a traffic light: ✓ will be imported,
+⚠ only via another route (with advice which), 🔒 encrypted (with advice how to decrypt); for
+the WhatsApp database it shows messages, chats, period, LID mappings and where the names will
+come from; (3) *import*. Files dropped onto the open assistant are checked first as well;
+files and folders dropped into the window are imported right away as before.
+
+Directly read: WhatsApp Android `msgstore.db` (schema from 2022) with `wa.db`, `-wal` and a
+contact list. Via ALEAPP/iLEAPP or an SQL query exported as CSV: WhatsApp Android before 2022,
+WhatsApp iPhone `ChatStorage.sqlite`, `sms.db`, `mmssms.db`, `bugle_db`, Telegram `cache4.db`.
+Encrypted (SQLCipher): Signal, Threema – via ALEAPP of a full extraction. WhatsApp backups
+`*.crypt12/14/15`: decrypt with the WhatsAppE2EDecryptor first.
+
 ## Supported sources
 
 These are the ways into the ChatVisualizer; only for unknown columns does the import ask once:
@@ -117,6 +135,7 @@ These are the ways into the ChatVisualizer; only for unknown columns does the im
 | Source | What you drop in | What happens |
 | --- | --- | --- |
 | **ALEAPP report** | the whole report folder (`ALEAPP_Reports_…` or `ALEAPP_Output_…`) or the TSV files from `_TSV Exports` | The tables of each app are recognised and **combined**: names, attachments, calls, system events, read receipts, reactions. All other tables of the report (browser, Wi-Fi, accounts …) are skipped silently. |
+| **WhatsApp database (Android)** | ALEAPP report folder, case folder of the decryption tool or `msgstore.db` (+ `wa.db`, `kontakte.csv`) | **read directly**, replaces the WhatsApp TSVs of the report, see [WhatsApp databases directly](#whatsapp-databases-directly) |
 | **WhatsApp text export** | TXT, ZIP with media or the unpacked folder (Android and iPhone) | see [WhatsApp text exports with media](#whatsapp-text-exports-with-media) |
 | **iLEAPP report** | report folder or TSV files from `_TSV Exports` | see [iLEAPP reports](#ileapp-reports) |
 | **SQL export from device databases** | CSV with the raw column names (`ZWAMESSAGE`, `message`, `sms.db` …) | see [SQL exports from device databases](#sql-exports-from-device-databases) |
@@ -201,6 +220,45 @@ entries.
 - A WhatsApp text export (TXT/ZIP) of the same chat is not merged with the ALEAPP data but
   appears as a separate chat.
 - Reactions are only available for WhatsApp; edits are marked with „(bearbeitet)" (edited).
+
+## WhatsApp databases directly
+
+WhatsApp on Android stores everything in `msgstore.db`. Newer versions file chats and senders
+under an anonymous identifier (`…@lid`); only the table `jid_map` says which phone number is
+behind it. That table is not part of any ALEAPP report, so via the TSVs a conversation easily
+splits into two chats and group events name identifiers instead of people. The ChatVisualizer
+therefore reads the database itself whenever it is included:
+
+- Drop the **ALEAPP report folder**: ALEAPP copies `msgstore.db` and `wa.db` to
+  `data/…/com.whatsapp/databases/`, the media sit next to them under their original paths.
+- Drop the **case folder of the decryption tool** (`WA_ADB_…` or `WA_ALEAPP_…`) – no ALEAPP
+  needed.
+- Or single files: `msgstore.db`, plus `wa.db` and `kontakte.csv`, each with `-wal` if present.
+
+The result: one chat per person (LID identifiers are mapped to their phone number), own
+messages recognised by the device they came from (`message_details`, also in groups), system
+messages naming people („Du hast +49170… und Anna hinzugefügt“), replies, reactions, read
+status per recipient, edited and deleted messages, calls with duration, locations, contact
+cards, polls and group invites, media via their database path, and the origin of every message
+(`msgstore.db · message._id 254`) in the tooltip of the time. A `-wal` next to the database is
+applied (committed, intact pages only, the way SQLite reads it). A copy in memory is read; the
+files stay unchanged.
+
+**Names.** WhatsApp does **not** put the contact list into the backup: the `wa.db` decrypted
+from `wa.db.crypt15` has an empty `wa_contacts` table. Names therefore come, in this order,
+from (1) a `wa.db` with contacts (from a full file system extraction) – address book name,
+otherwise the self-chosen profile name with a leading tilde (`~ Anna`); (2) a **contact list**,
+only if `wa.db` has no contacts – the decryption tool reads it from the phone's address book in
+the tab „Vom Gerät (adb)“ (`geraet/kontakte.csv`); any CSV with name and number works,
+numbers without country code are matched by their last nine digits when unambiguous;
+(3) otherwise the number stays. Without a database, a contact list also names the chat
+partners of the TSV import.
+
+**Limitations.** The old schema (table `messages`, WhatsApp before 2022) is not read directly;
+then the TSVs of the ALEAPP report are used. Files are loaded into memory completely; very
+large databases (over 1 GB) may hit the browser's limit. Older daily backups
+(`msgstore-YYYY-MM-DD.1.db`) are not read. The outcome of a call is derived from its duration;
+the raw `call_result` is shown in the origin.
 
 ## WhatsApp text exports with media
 
@@ -308,6 +366,19 @@ next to them. In addition you can set:
 
 A **time sample** shows the first time as local time and as UTC before importing. The answer
 applies to all files with the same columns. It can be forgotten in the help dialog (**?**).
+
+### Changing the mapping later
+
+If something is wrong after the import (wrong chat column, wrong time zone, sender and
+recipient swapped), the **⇄** button in the chat header opens the same dialog with the
+previous choice. After **Neu zuordnen** (remap) all messages of this table are rebuilt;
+chats may appear, merge or disappear. The file does not need to be loaded again: the table
+itself is stored during import. If a chat comes from several tables, you are asked which
+one is meant first.
+
+The button is available for CSV, TSV and SQL exports imported with version 1.2 or later.
+For older imports, import the file once more. ALEAPP reports and WhatsApp text exports are
+recognised without the dialog and do not have it.
 
 ## CSV format
 
@@ -522,9 +593,29 @@ The panel shows the number of affected messages.
 
 ## Media folder
 
-In addition to the CSV files, the folder with the attachments can be connected, via the
-**🖼** button in the sidebar or by dragging the folder into the window. The chat then shows
-the files:
+### Media sources
+
+Every import is a **media source** and looks for its images, videos and voice messages only in
+its **own** media folders. WhatsApp names files identically on every device
+(`IMG-20260925-WA0000.jpg`); with one shared folder for everything, a chat could show the image
+of the other device.
+
+- **Drop a report or case folder** (or choose it in the assistant): the folder is the media
+  folder of exactly that import – nothing else to do.
+- **Import without a folder** (CSV, database alone): the message after the import and the
+  sidebar offer „Medienordner verbinden“. **🖼** opens the *media sources* overview: per import
+  how many media were found, the missing files and where they usually are for this messenger,
+  plus „Medienordner wählen …“ (several folders per import are possible, e.g. ALEAPP report and
+  `com.whatsapp`).
+- **Drop a folder that only contains media**: the ChatVisualizer asks which import it belongs
+  to; the import of the open chat is suggested.
+- Without own folders (older imports) all folders are searched – but if a file is in several
+  media folders, the tile says „ambiguous“ instead of guessing.
+- Permissions are remembered per import; after a restart the sidebar offers to reconnect.
+
+### Display
+
+With the media folder connected, the chat shows the files:
 
 - Images appear directly as a preview; a click opens the large view (`←` `→` pages through
   all images and videos of the conversation, `Esc` closes)
@@ -679,9 +770,12 @@ js/bedienung/fortschritt.js      progress bar and loading bars
 js/bedienung/hilfe.js            help dialog for the CSV format
 js/bedienung/import.js           import of CSV, WhatsApp export and ALEAPP report, drag & drop, export, demo data
 js/bedienung/whatsapp-import.js  ask for chat name and date format, read WhatsApp ZIPs
+js/daten/whatsapp-db.js         reads WhatsApp databases directly (msgstore.db, wa.db, -wal, contact list)
 js/bedienung/spaltenzuordnung.js dialog „Spalten zuordnen" (map columns) for unknown CSVs
 js/bedienung/pdf-bericht.js      chat as a PDF report (print dialog)
-js/bedienung/medienordner.js     connect, remember and disconnect the media folder
+js/bedienung/medienordner.js     media sources: connect, remember, assign and disconnect folders per import
+js/bedienung/import-assistent.js import assistant: choose the route, check, import
+js/daten/datenbanken.js          catalogue of device databases, recognised by their tables
 js/bedienung/uebersetzen.js      translation controls (🌐)
 js/bedienung/sprachnachrichten.js transcription controls (🎤)
 js/bedienung/dokumente.js        make attachments searchable in the background
@@ -692,6 +786,7 @@ modelle/quellen.json     blueprint for the speech recognition model
 modelle/                 the model itself, downloaded on first start (242 MB)
 vendor/transformers/     runtime for the model (transformers.js and ONNX WASM, 22 MB)
 vendor/pdfjs/            PDF.js for preview and text extraction (4 MB)
+vendor/sqljs/            sql.js (SQLite as WebAssembly) for WhatsApp databases (0.7 MB)
 hole-modell.py           downloads missing model files
 serve.py                 web server for macOS/Linux with the required MIME types
 ChatVisualizer starten.cmd   start file for Windows
@@ -726,6 +821,7 @@ Bundled third-party components keep their own licenses:
 | --- | --- |
 | `vendor/pdfjs/` – PDF.js (Mozilla) | Apache-2.0; fonts and WASM decoders with their own license files in the same folder |
 | `vendor/transformers/` – Transformers.js (Hugging Face) with ONNX Runtime Web (Microsoft) | Apache-2.0 and MIT |
+| `vendor/sqljs/` – sql.js 1.14.2 (SQLite compiled to WebAssembly) | MIT (SQLite itself: public domain) |
 | Speech recognition model in `modelle/` (downloaded on first start) | Apache-2.0, see `modelle/quellen.json` |
 | Emoji short names in `js/daten/emoji-namen.js` – from gemoji (GitHub) | MIT |
 | Sample media in `beispiel-daten/medien/` | see `beispiel-daten/QUELLEN.md` |

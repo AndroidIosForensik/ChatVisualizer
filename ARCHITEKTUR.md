@@ -38,7 +38,7 @@ werkzeuge/            Hilfsskripte für Entwickler (z. B. Emoji-Tabelle neu erze
 werkzeuge/baue-exe.ps1      baut dist/ChatVisualizer.exe (csc.exe aus Windows, kein Download)
 werkzeuge/exe/ChatVisualizer.cs  die EXE: eingebettetes app.zip entpacken, Modell nachladen,
                       HTTP-Server wie start.ps1 (Teilabrufe, MIME-Typen), Browser öffnen
-vendor/               PDF.js und transformers.js, unverändert übernommen
+vendor/               PDF.js, transformers.js und sql.js, unverändert übernommen
 ```
 
 Das Modell liegt nicht im Git-Speicher, weil GitHub ohne Git LFS bei 100 MB
@@ -55,7 +55,7 @@ Downloads fort und schreiben anschließend `modelle/verzeichnis.json`.
 |---|---|---|
 | `helfer.js` | `Helfer` | `$`, `$$`, `esc`, `debounce`, `withTimeout`, `download`, … |
 | `csv.js` | `CSV` | CSV lesen (RFC 4180, Trennzeichen automatisch) |
-| `store.js` | `Store` | IndexedDB (ein Eintrag je Unterhaltung) und Einstellungen |
+| `store.js` | `Store` | IndexedDB (ein Eintrag je Unterhaltung, Rohdaten importierter Tabellen für „neu zuordnen") und Einstellungen |
 | `model.js` | `Model` | Datenmodell, Spaltenzuordnung, Zustand (`Model.state`) |
 
 `Model.state` ist der gemeinsame Zustand: alle Nachrichten, die daraus
@@ -68,13 +68,15 @@ gebildeten Unterhaltungen, der offene Chat, Suchbegriffe, Treffer.
 | `messengers.js` | `Messengers` | Logos und Farben der Messenger |
 | `emoji.js` | `Emoji` | Reaktionen als Kurzname („(purple_heart)", „:+1::skin-tone-3:", „(like)") in Emoji übersetzen |
 | `emoji-namen.js` | `EmojiNamenDaten` | Tabelle Kurzname → Emoji, erzeugt von `werkzeuge/erzeuge-emoji-namen.py` aus gemoji (MIT) |
-| `media.js` | `Media` | Medienordner einlesen, Pfade zuordnen, Dateien liefern |
+| `media.js` | `Media` | Medienordner einlesen, Pfade zuordnen, Dateien liefern; **Medienquellen**: jeder Import (`m.medienQuelle`) sucht nur in seinen Ordnern, Aufrufer übergeben `Media.ref(m)` statt des Pfads, ohne eigene Ordner gilt ein Treffer in mehreren Ordnern als mehrdeutig |
+| `datenbanken.js` | `Datenbanken` | Katalog der Geräte-Datenbanken mit Versionen und Stand; erkennt eine Datei an ihren Tabellen bzw. als verschlüsselt (für den Import-Assistenten) |
 | `whatsapp.js` | `WhatsApp` | Android-/iPhone-Textexporte erkennen, Datum und Anhänge lesen, stabile Nachrichten-IDs erzeugen |
 | `aleapp.js` | `Aleapp` | ALEAPP-Berichte: jede TSV an ihren Spalten einer App und Rolle zuordnen, die Tabellen einer App gemeinsam auswerten, Quellen abgleichen (SMS ↔ Google Messages); kennt selbst keine App |
 | `aleapp-whatsapp.js` | – | WhatsApp aus ALEAPP: Kontakte, LID-Chats über Zeit + Text, Lesebestätigungen, Reaktionen, Systemereignisse, Anrufe, Umfragen |
 | `aleapp-apps.js` | – | Signal, Telegram, Threema, SMS/MMS, Google Messages und rund 35 weitere Apps über `Aleapp.einfach` |
 | `ileapp.js` | `Ileapp` | dasselbe für iLEAPP: SMS/iMessage, WhatsApp, Threema, Signal, Telegram |
 | `geraete-db.js` | `GeraeteDB` | SQL-Exporte mit rohen Spaltennamen erkennen: WhatsApp `ChatStorage.sqlite`/`msgstore.db`, iOS `sms.db`, Android `mmssms.db` |
+| `whatsapp-db.js` | `WhatsAppDB` | WhatsApp-Datenbanken (Android) direkt lesen: `msgstore.db` mit sql.js (bei Bedarf geladen), `-wal` einspielen, LID → Nummer über `jid_map`, Namen aus `wa.db` oder einer Kontaktliste; liefert Zeilen im eigenen Spaltenformat; ersetzt beim Import die WhatsApp-TSVs |
 | `archive.js` | `Archive` | ZIP lesen (für docx/xlsx/pptx/odf) – ganz ohne Bibliothek |
 | `documents.js` | `Documents` | Dokumente: Vorschau, Textauszug, Hintergrundlauf |
 | `translate.js` | `Translate` | Übersetzung über die Browser-Schnittstelle |
@@ -109,8 +111,9 @@ weder den Zustand noch stößt sie Läufe an.
 | `import.js` | `Import` | CSV, WhatsApp-Export und ALEAPP-Bericht einlesen, Ablegen per Maus, Export, Demodaten |
 | `whatsapp-import.js` | `WhatsAppImport` | Chatname/Datumsformat abfragen, ZIP-Exporte lesen und Anhänge bei Bedarf entpacken |
 | `pdf-bericht.js` | `PdfBericht` | Chat als druckfertiger Bericht (Deckblatt, Verlauf, Bilder, Prüfsumme) → Druckdialog „Als PDF speichern" |
-| `spaltenzuordnung.js` | `Spaltenzuordnung` | Dialog „Spalten zuordnen" für fremde CSVs mit Beispielwerten und Zeitprobe; merkt die Antwort je Spaltensatz |
-| `medienordner.js` | `Medienordner` | Ordner verbinden, merken, trennen |
+| `spaltenzuordnung.js` | `Spaltenzuordnung` | Dialog „Spalten zuordnen" für fremde CSVs mit Beispielwerten und Zeitprobe; merkt die Antwort je Spaltensatz; derselbe Dialog ändert später die Zuordnung (`Import.neuZuordnen`, Knopf ⇄) |
+| `medienordner.js` | `Medienordner` | Medienquellen: Ordner je Import verbinden, merken (Handle `medien:<Quelle>`), reine Medienordner einem Import zuordnen, Übersicht `#medienDialog` |
+| `import-assistent.js` | `ImportAssistent` | Import in drei Schritten: Weg wählen, Prüfung mit Ampel (ohne zu importieren), importieren |
 | `uebersetzen.js` | `Uebersetzen` | 🌐 Knopf, Panel, Chatlauf, Einzelnachricht |
 | `sprachpakete.js` | `Sprachpakete` | Sprachpakete der Browser-Übersetzung vorab laden (Startseite, 🌐-Panel); Stand je Sprache, Auswahl gemerkt |
 | `sprachnachrichten.js` | `Sprachnachrichten` | 🎤 Knopf, Panel, Chatlauf, Einzelnachricht |

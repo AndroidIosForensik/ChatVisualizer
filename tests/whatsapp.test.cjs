@@ -11,6 +11,7 @@ function environment() {
   const messages = [];
   const stored = new Map();
   const settings = new Map();
+  const tabellen = new Map();
   const element = key => {
     if (!elements.has(key)) elements.set(key, { classList: { add() {}, remove() {}, toggle() {} } });
     return elements.get(key);
@@ -20,7 +21,10 @@ function environment() {
     document: { querySelector: element, querySelectorAll: () => [] },
     Store: { settings: { get: (key, fallback) => settings.has(key) ? JSON.parse(settings.get(key)) : fallback,
       set: (key, value) => settings.set(key, JSON.stringify(value)) },
-      putConversations: async rows => { for (const row of rows) stored.set(row.convKey, row); return true; } },
+      putConversations: async rows => { for (const row of rows) stored.set(row.convKey, row); return true; },
+      deleteConv: async key => { stored.delete(key); },
+      putTabelle: async satz => { tabellen.set(satz.id, structuredClone(satz)); return true; },
+      getTabelle: async id => tabellen.has(id) ? structuredClone(tabellen.get(id)) : null },
     Render: { renderAll() {} }, Meldung: { zeige: text => messages.push(text) },
     App: { oeffneChat() {} }, Dokumentenlauf: { alleLesen() {} },
     Medienordner: { ansichtenAuffrischen() {}, dateienAnhaengen: async files => ctx.Media.attachFileList(files) }
@@ -28,7 +32,7 @@ function environment() {
   ctx.window = ctx;
   for (const file of ['kern/helfer', 'kern/csv', 'kern/model', 'daten/messengers', 'daten/media',
     'daten/archive', 'daten/whatsapp', 'daten/aleapp', 'daten/aleapp-whatsapp', 'daten/aleapp-apps',
-    'daten/ileapp', 'daten/geraete-db',
+    'daten/ileapp', 'daten/geraete-db', 'daten/whatsapp-db',
     'bedienung/whatsapp-import', 'bedienung/spaltenzuordnung', 'bedienung/import']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', file + '.js'), 'utf8'), ctx);
   }
@@ -45,7 +49,7 @@ function environment() {
     if (wahl) ctx.Spaltenzuordnung.merken(a.header, wahl);
     return wahl;
   };
-  return { ctx, messages, stored, dialoge };
+  return { ctx, messages, stored, dialoge, tabellen };
 }
 
 function parse(text, options = {}) {
@@ -943,4 +947,73 @@ test('Spalte mit doppelten IDs wird nicht als Schlüssel benutzt, Zeilen gehen n
   await ctx.Import.importiereDateien([new File([csv], 'ids.csv')]);
   assert.equal(ctx.Model.state.messages.length, 3);
   assert.match(messages.at(-1), /enthält doppelte Werte/);
+});
+
+/* ---- Spalten neu zuordnen ------------------------------------------------ */
+
+test('Neu zuordnen: falsch gewählte Chatspalte nachträglich korrigieren', async () => {
+  const { ctx, dialoge, stored, tabellen, messages } = environment();
+  // Beim Import versehentlich den Absender als Chat gewählt
+  ctx.Spaltenzuordnung.antwort = () => ({ map: { conv: 'von', text: 'inhalt', ts: 'zeit', sender: 'von' },
+    zone: 'UTC', festerChat: '', messenger: 'Signal' });
+  const csv = 'partner,von,inhalt,zeit\nAnna,Anna,Hallo,2026-01-15 12:00\nAnna,Ich,Hi Anna,2026-01-15 12:01\n' +
+    'Ben,Ben,Moin,2026-01-15 12:02\n';
+  await ctx.Import.importiereDateien([new File([csv], 'abfrage.csv')]);
+  const { state } = ctx.Model;
+  assert.equal(state.conversations.length, 3);                 // Anna, Ich, Ben – falsch
+  assert.equal(tabellen.size, 1);
+  assert.ok(state.messages.every(m => m.tabelle));
+  const vorher = Array.from(stored.keys());
+
+  // Jetzt richtig: Chat = partner; der Dialog bekommt die bisherige Wahl vorbelegt
+  ctx.Spaltenzuordnung.antwort = a => {
+    assert.equal(a.neu, true);
+    assert.equal(a.map.conv, 'von');
+    assert.equal(a.zone, 'UTC');
+    return { map: { ...a.map, conv: 'partner' }, zone: a.zone, festerChat: '', messenger: a.messenger };
+  };
+  const anna = state.conversations.find(c => c.conv === 'Anna').key;
+  assert.equal(await ctx.Import.neuZuordnen(anna), true);
+  assert.equal(dialoge.length, 2);
+  assert.deepEqual(Array.from(state.conversations, c => c.conv).sort(), ['Anna', 'Ben']);
+  assert.equal(state.conversations.find(c => c.conv === 'Anna').messages.length, 2);
+  assert.equal(state.messages.length, 3);
+  assert.equal(state.messages[0].messenger, 'signal');
+  // Der Chat „Ich" ist auch aus dem Speicher verschwunden
+  assert.deepEqual(Array.from(stored.keys()).sort(), Array.from(state.conversations, c => c.key).sort());
+  assert.ok(vorher.length > stored.size);
+  // Die neue Wahl ist gespeichert und gilt beim nächsten Mal als Vorgabe
+  assert.equal(Array.from(tabellen.values())[0].wahl.map.conv, 'partner');
+  assert.match(messages.at(-1), /neu zugeordnet: 3 Nachrichten in 2 Chats/);
+});
+
+test('Neu zuordnen: Abbrechen ändert nichts, Chats ohne gespeicherte Tabelle melden das', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([new File(['chatname,nachrichteninhalt,zeitstempel\nA,eins,2026-01-15 12:00\n'], 'a.csv')]);
+  const { state } = ctx.Model;
+  const key = state.conversations[0].key;
+  ctx.Spaltenzuordnung.antwort = null;                        // Dialog abgebrochen
+  assert.equal(await ctx.Import.neuZuordnen(key), false);
+  assert.equal(state.messages.length, 1);
+
+  const { ctx: ctx2, messages } = environment();
+  await ctx2.Import.importiereDateien([new File(['21.09.26, 09:06 - Anna: Hallo\n'], 'WhatsApp Chat mit Anna.txt')]);
+  const wa = ctx2.Model.state.conversations[0].key;
+  assert.deepEqual(Array.from(ctx2.Import.tabellenVon(wa)), []);
+  assert.equal(await ctx2.Import.neuZuordnen(wa), false);
+  assert.match(messages.at(-1), /keine Tabelle gespeichert/);
+});
+
+test('Medienquellen: zwei WhatsApp-Exporte mit gleichem Dateinamen zeigen je ihr eigenes Bild', async () => {
+  const { ctx } = environment();
+  await ctx.Import.importiereDateien([zip({ '_chat.txt': '[21.09.26, 10:00:00] Anna: <Anhang: Foto.jpg>', 'Foto.jpg': 'Bild von Anna' })]);
+  await ctx.Import.importiereDateien([zip({ '_chat.txt': '[22.09.26, 11:00:00] Ben: <Anhang: Foto.jpg>', 'Foto.jpg': 'Bild von Ben' })]);
+  const { state } = ctx.Model;
+  assert.equal(state.messages.length, 2);
+  for (const m of state.messages) {
+    const datei = await ctx.Media.getFile(ctx.Media.lookup(ctx.Media.ref(m)));
+    assert.equal(await datei.text(), m.sender === 'Anna' ? 'Bild von Anna' : 'Bild von Ben');
+  }
+  assert.notEqual(state.messages[0].medienQuelle, state.messages[1].medienQuelle);
+  assert.equal(ctx.Media.lookup('Foto.jpg'), null);        // ohne Quelle: mehrdeutig
 });

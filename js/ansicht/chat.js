@@ -249,6 +249,8 @@
       optionen += '<option value="' + esc(s) + '"' + (s === ich ? ' selected' : '') + '>' + esc(beschriftung(s)) + '</option>';
     }
     $('#meSelect').innerHTML = optionen;
+    // Neu zuordnen geht nur, wenn die Rohtabelle beim Import gespeichert wurde
+    $('#spaltenBtn').hidden = !conv.messages.some(m => m.tabelle);
   }
 
   /* ---- Verlauf ------------------------------------------------------- */

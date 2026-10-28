@@ -156,7 +156,7 @@
 
   /* Datei aus der Medienbibliothek oder – bei relativem Pfad – vom lokalen Server */
   function audioSource(m) {
-    const entry = Media.lookup(m.media);
+    const entry = Media.lookup(Media.ref(m));
     if (entry) return { entry: entry };
     const url = Helfer.direkteURL(m.media);
     return url ? { url: url } : null;

@@ -82,6 +82,7 @@
       for (const m of conv.media.slice(-60).reverse()) {
         const art = Medienansicht.artVon(m);
         html += '<button class="d-media-item" data-goto="' + esc(m.key) + '" data-thumb="' + esc(m.media) + '"' +
+          (m.medienQuelle ? ' data-quelle="' + esc(m.medienQuelle) + '"' : '') +
           ' data-kind="' + art + '" title="' + esc(m.media) + '">' +
           (Medienansicht.ART_SYMBOL[art] || '📎') + '</button>';
       }

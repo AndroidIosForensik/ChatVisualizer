@@ -32,7 +32,7 @@
     const sc = window.Transcribe && Transcribe.text(m.key);
     if (sc && norm(sc).indexOf(q) !== -1) return true;
 
-    const dok = m.media && window.Documents && Documents.text(m.media);
+    const dok = m.media && window.Documents && Documents.text(Media.ref(m));
     return !!(dok && norm(dok).indexOf(q) !== -1);
   }
 
@@ -60,7 +60,7 @@
     const sc = window.Transcribe && Transcribe.text(m.key);
     if (sc) { const k = kontext(sc, '🎤'); if (k) return k; }
 
-    const dok = m.media && window.Documents && Documents.text(m.media);
+    const dok = m.media && window.Documents && Documents.text(Media.ref(m));
     if (dok) { const k = kontext(dok, '📄'); if (k) return k; }
 
     return null;
